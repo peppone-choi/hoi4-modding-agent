@@ -25,5 +25,17 @@
   "fetch": {
     "command": "npx",
     "args": ["-y", "@tokenizin/mcp-npx-fetch"]
+  },
+  "wikipedia": {
+    "command": "npx",
+    "args": ["-y", "wikipedia-mcp"]
+  },
+  "duckduckgo": {
+    "command": "npx",
+    "args": ["-y", "duckduckgo-mcp-server"]
+  },
+  "youtube": {
+    "command": "npx",
+    "args": ["-y", "youtube-transcript-mcp"]
   }
 }
