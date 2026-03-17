@@ -36,6 +36,7 @@ class ChatSessionManager:
                     role TEXT NOT NULL,
                     content TEXT NOT NULL,
                     images TEXT,
+                    tool_history TEXT,
                     timestamp TEXT NOT NULL,
                     FOREIGN KEY (session_id) REFERENCES sessions(session_id) ON DELETE CASCADE
                 )
@@ -44,6 +45,14 @@ class ChatSessionManager:
                 CREATE INDEX IF NOT EXISTS idx_session_messages 
                 ON messages(session_id, timestamp)
             """)
+            # 기존 DB 마이그레이션
+            self._migrate(conn)
+
+    def _migrate(self, conn: sqlite3.Connection) -> None:
+        """기존 DB에 새 컬럼을 안전하게 추가."""
+        existing = {row[1] for row in conn.execute("PRAGMA table_info(messages)")}
+        if "tool_history" not in existing:
+            conn.execute("ALTER TABLE messages ADD COLUMN tool_history TEXT")
 
     def create_session(self, title: str | None = None) -> str:
         """새 세션 생성."""
@@ -64,15 +73,17 @@ class ChatSessionManager:
         role: str,
         content: str,
         images: list[str] | None = None,
+        tool_history: list[dict] | None = None,
     ) -> None:
         """메시지 저장."""
         now = datetime.now().isoformat()
         images_json = json.dumps(images) if images else None
+        tool_json = json.dumps(tool_history, ensure_ascii=False) if tool_history else None
 
         with sqlite3.connect(self.db_path) as conn:
             conn.execute(
-                "INSERT INTO messages (session_id, role, content, images, timestamp) VALUES (?, ?, ?, ?, ?)",
-                (session_id, role, content, images_json, now),
+                "INSERT INTO messages (session_id, role, content, images, tool_history, timestamp) VALUES (?, ?, ?, ?, ?, ?)",
+                (session_id, role, content, images_json, tool_json, now),
             )
             # 세션 업데이트
             conn.execute(
@@ -85,7 +96,7 @@ class ChatSessionManager:
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
             cursor = conn.execute(
-                "SELECT role, content, images FROM messages WHERE session_id = ? ORDER BY timestamp",
+                "SELECT role, content, images, tool_history FROM messages WHERE session_id = ? ORDER BY timestamp",
                 (session_id,),
             )
             messages = []
@@ -93,6 +104,8 @@ class ChatSessionManager:
                 msg = {"role": row["role"], "content": row["content"]}
                 if row["images"]:
                     msg["images"] = json.loads(row["images"])
+                if row["tool_history"]:
+                    msg["tool_history"] = json.loads(row["tool_history"])
                 messages.append(msg)
             return messages
 
@@ -127,3 +140,25 @@ class ChatSessionManager:
             )
             row = cursor.fetchone()
             return row[0] if row else None
+
+    def search_messages(self, query: str, session_id: str | None = None, limit: int = 20) -> list[dict[str, Any]]:
+        """세션 메시지 전문 검색."""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            if session_id:
+                cursor = conn.execute(
+                    "SELECT m.session_id, s.title, m.role, m.content, m.timestamp "
+                    "FROM messages m JOIN sessions s ON m.session_id = s.session_id "
+                    "WHERE m.session_id = ? AND m.content LIKE ? "
+                    "ORDER BY m.timestamp DESC LIMIT ?",
+                    (session_id, f"%{query}%", limit),
+                )
+            else:
+                cursor = conn.execute(
+                    "SELECT m.session_id, s.title, m.role, m.content, m.timestamp "
+                    "FROM messages m JOIN sessions s ON m.session_id = s.session_id "
+                    "WHERE m.content LIKE ? "
+                    "ORDER BY m.timestamp DESC LIMIT ?",
+                    (f"%{query}%", limit),
+                )
+            return [dict(row) for row in cursor]

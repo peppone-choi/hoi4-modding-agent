@@ -34,3 +34,7 @@ google-generativeai>=0.8.0
 google-genai>=0.3.0
 ddgs>=7.0.0
 tavily-python>=0.5.0
+
+# MCP (선택 — mcp_servers.json 설정 시 활성화)
+mcp>=1.0.0
+nest-asyncio>=1.6.0

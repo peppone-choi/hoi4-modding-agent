@@ -45,6 +45,10 @@ setup(
             "scikit-image>=0.22.0",
             "scipy>=1.12.0",
         ],
+        "mcp": [
+            "mcp>=1.0.0",
+            "nest-asyncio>=1.6.0",
+        ],
         "dev": [
             "pytest>=7.4.4",
             "pytest-cov>=4.1.0",

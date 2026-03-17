@@ -22,7 +22,8 @@ class Config:
     db_path: Path | None = None
     
     default_model: str = "claude-opus-4-6"
-    max_tokens: int = 8192
+    max_tokens: int = 16384
+    max_tool_rounds: int = 50
     
     max_sessions: int = 50
     session_auto_save: bool = True

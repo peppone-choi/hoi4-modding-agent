@@ -10,6 +10,8 @@ def render_sidebar(ctx: ModContext, mod_root, gemini_key: str):
     with st.sidebar:
         _render_session_panel()
         st.divider()
+        _render_session_search()
+        st.divider()
         _render_mod_info(ctx, mod_root)
         st.divider()
         _render_tool_status(gemini_key)
@@ -90,6 +92,25 @@ def _render_session_panel():
         st.rerun()
 
 
+def _render_session_search():
+    query = st.text_input("🔍 세션 검색", placeholder="키워드 입력...")
+    if query:
+        results = st.session_state.chat_manager.search_messages(query, limit=10)
+        if results:
+            st.caption(f"{len(results)}건 발견")
+            for r in results:
+                with st.expander(f"[{r['role']}] {r['title']}", expanded=False):
+                    st.text(r["content"][:300])
+                    if st.button("이 세션으로 이동", key=f"jump_{r['session_id']}_{r['timestamp']}"):
+                        st.session_state.current_session_id = r["session_id"]
+                        st.session_state.messages = (
+                            st.session_state.chat_manager.load_messages(r["session_id"])
+                        )
+                        st.rerun()
+        else:
+            st.caption("결과 없음")
+
+
 def _render_mod_info(ctx: ModContext, mod_root):
     st.header("📊 모드 정보")
     for k, v in ctx.to_stats_dict().items():
@@ -101,6 +122,15 @@ def _render_tool_status(gemini_key: str):
     st.markdown(f"🔍 Tavily: {'✅' if tavily_ok else '⚠️ DDGS 폴백'}")
     st.markdown("📖 Wikipedia: ✅")
     st.markdown(f"🖼️ Gemini: {'✅' if gemini_key else '❌'}")
+
+    mcp = st.session_state.get("mcp_manager")
+    if mcp and mcp.available:
+        tools = mcp.discover_tools()
+        st.markdown(f"🔌 MCP: ✅ ({len(tools)}개 도구)")
+    elif mcp and mcp.configs:
+        st.markdown("🔌 MCP: ⚠️ `pip install mcp` 필요")
+    else:
+        st.markdown("🔌 MCP: — (mcp_servers.json 없음)")
 
 
 def _render_rescan(mod_root):

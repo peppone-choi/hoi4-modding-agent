@@ -9,9 +9,10 @@ from pathlib import Path
 class ToolExecutor:
     """Executes tools based on Claude API tool calls."""
     
-    def __init__(self, mod_root: Path, gemini_key: str | None = None):
+    def __init__(self, mod_root: Path, gemini_key: str | None = None, mcp_manager=None):
         self.mod_root = mod_root
         self.gemini_key = gemini_key
+        self.mcp_manager = mcp_manager
     
     def execute(self, name: str, inp: dict) -> str:
         """
@@ -25,6 +26,8 @@ class ToolExecutor:
             Tool execution result as string
         """
         try:
+            if name.startswith("mcp_") and self.mcp_manager:
+                return self.mcp_manager.execute(name, inp)
             if name == "web_search":
                 return self._web_search(inp)
             if name == "wiki_lookup":

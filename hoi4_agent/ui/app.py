@@ -50,6 +50,12 @@ def main():
             mod_root / ".chat_sessions.db"
         )
 
+    if "mcp_manager" not in st.session_state:
+        from hoi4_agent.core.mcp_client import MCPManager
+        st.session_state.mcp_manager = MCPManager.from_config_file(
+            mod_root / "mcp_servers.json"
+        )
+
     if "current_session_id" not in st.session_state:
         latest = st.session_state.chat_manager.get_latest_session()
         if latest:
