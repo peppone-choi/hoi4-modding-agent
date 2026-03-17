@@ -28,7 +28,7 @@ def remove_background_bytes(input_bytes: bytes) -> bytes:
         [
             str(REMBG_PYTHON), "-c",
             "import sys; from rembg import remove, new_session; "
-            "s = new_session('u2net_human_seg'); "
+            "s = new_session('birefnet-portrait'); "
             "data = sys.stdin.buffer.read(); "
             "sys.stdout.buffer.write(remove(data, session=s))",
         ],
@@ -50,7 +50,7 @@ def remove_background(image: Image.Image) -> Image.Image:
     # 방법 1: 직접 import (같은 venv에 rembg 있을 때)
     try:
         from rembg import remove as _remove, new_session
-        session = new_session("u2net_human_seg")
+        session = new_session("birefnet-portrait")
         buf = BytesIO()
         image.convert("RGB").save(buf, format="PNG")
         result_bytes = _remove(buf.getvalue(), session=session)
