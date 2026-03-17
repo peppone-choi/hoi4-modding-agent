@@ -5,7 +5,7 @@ setup(
     version="4.0.0",
     description="AI-powered modding assistant for Hearts of Iron IV",
     author="Breaking Point Team",
-    python_requires=">=3.11",
+    python_requires=">=3.11,<3.13",
     packages=find_packages(exclude=["tests*", "docs*", "examples*"]),
     install_requires=[
         "anthropic>=0.40.0",
@@ -26,11 +26,23 @@ setup(
             "tavily-python>=0.5.0",
         ],
         "portrait": [
+            # Gemini API
             "google-generativeai>=0.8.0",
             "google-genai>=0.3.0",
-            "rembg>=2.0.67",
-            "opencv-python>=4.9.0.80",
+            # 이미지 처리 — numpy<2 필수 (mediapipe 호환)
+            "numpy>=1.26.0,<2",
+            "opencv-python>=4.9.0.80,<4.12",
+            "opencv-contrib-python>=4.9.0.80,<4.12",
             "mediapipe>=0.10.21",
+            # 배경 제거
+            "rembg>=2.0.67,<2.0.70",
+            "onnxruntime>=1.17.0",
+            # rembg 내부 의존성 (numba/llvmlite는 반드시 프리빌드 휠 사용)
+            "llvmlite>=0.43.0",
+            "numba>=0.60.0",
+            "pymatting>=1.1.12",
+            "scikit-image>=0.22.0",
+            "scipy>=1.12.0",
         ],
         "dev": [
             "pytest>=7.4.4",

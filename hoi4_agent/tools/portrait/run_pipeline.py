@@ -27,8 +27,8 @@ from loguru import logger
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from tools.portrait_generator.pipeline.portrait_pipeline import PortraitPipeline
-from tools.portrait_generator.search.multi_search import MultiSourceSearch
+from hoi4_agent.tools.portrait.pipeline.portrait_pipeline import PortraitPipeline
+from hoi4_agent.tools.portrait.search.multi_search import MultiSourceSearch
 
 
 def cmd_single(args: argparse.Namespace) -> None:

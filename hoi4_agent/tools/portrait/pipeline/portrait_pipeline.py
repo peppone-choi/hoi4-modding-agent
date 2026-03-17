@@ -1,10 +1,13 @@
 """
 초상화 생성 파이프라인 오케스트레이터.
-원본 이미지 → 배경 제거 → 얼굴 감지 + 부위 마스크 → 스마트 크롭
-→ 부위별 TFR 스타일 → 스캔라인 → 보라 배경 합성 → 저장.
+
+두 가지 모드:
+  - **gemini** (기본): 스마트 크롭 → 배경 제거 → Gemini 스타일 전사 → 스캔라인 → 저장
+  - **local** :        스마트 크롭 → 배경 제거 → 부위별 TFR 스타일 → 스캔라인 → 보라 배경 합성 → 저장
 """
 from __future__ import annotations
 
+import os
 from io import BytesIO
 from pathlib import Path
 
@@ -12,12 +15,12 @@ import numpy as np
 from PIL import Image, ImageDraw
 from loguru import logger
 
-from tools.portrait_generator.core.face_detector import FaceDetector
-from tools.portrait_generator.effects.scanline import ScanlineOverlay
-from tools.portrait_generator.effects.tfr_style import TFRStyler
+from hoi4_agent.tools.portrait.core.face_detector import FaceDetector
+from hoi4_agent.tools.portrait.effects.scanline import ScanlineOverlay
+from hoi4_agent.tools.portrait.effects.tfr_style import TFRStyler
 
 try:
-    from tools.shared.constants import (
+    from hoi4_agent.tools.shared.constants import (
         GFX_LEADERS_DIR,
         PORTRAIT_HEIGHT,
         PORTRAIT_WIDTH,
@@ -29,6 +32,30 @@ except ImportError:
     GFX_LEADERS_DIR = Path("gfx/leaders")
     BG_COLOR_HEX = "#3D2B50"
 
+# Gemini에 보내는 크롭 크기 — 해상도가 높아야 스타일 전사 품질이 좋음
+GEMINI_CROP_WIDTH = 500
+GEMINI_CROP_HEIGHT = 678  # 156:210 비율 유지
+
+# ── TFR 스타일 프롬프트 ──────────────────────────────────────────────
+# Idenn의 TFR 초상화 튜토리얼 기반.
+# Gemini에게 "HOI4 TFR 모드 포트레잇"이 무엇인지 최대한 명시적으로 설명.
+DEFAULT_TFR_STYLE_PROMPT = (
+    "Transform this portrait into a Hearts of Iron IV TFR (The Fallen Republic) "
+    "mod-style leader portrait. Follow these rules strictly:\n"
+    "1. Convert to a semi-painterly digital painting — NOT photorealistic, "
+    "NOT cartoon. Think oil painting with visible brushstrokes but retaining "
+    "facial likeness.\n"
+    "2. Desaturate colors significantly. Use muted, earthy warm tones. "
+    "Skin should be tinted with warm brown-orange (#936F60). Lips: #936B60. "
+    "Eyes: grayish (#898989).\n"
+    "3. Overall mood: dark, moody, dramatic. Lower brightness ~15%. "
+    "Increase contrast ~30%.\n"
+    "4. Keep the person's face, expression, and facial structure recognizable.\n"
+    "5. Background MUST be solid dark purple (#3D2B50).\n"
+    "6. Clothing should be slightly desaturated and darkened but keep original color hue.\n"
+    "7. Output as a clean portrait with head and upper torso visible."
+)
+
 
 def _hex_to_rgb(h: str) -> tuple[int, int, int]:
     h = h.lstrip("#")
@@ -36,33 +63,168 @@ def _hex_to_rgb(h: str) -> tuple[int, int, int]:
 
 
 class PortraitPipeline:
-    """TFR 스타일 초상화 생성 파이프라인."""
+    """TFR 스타일 초상화 생성 파이프라인.
 
-    def __init__(self) -> None:
+    Args:
+        mode: ``"gemini"`` (Gemini 스타일 전사) 또는 ``"local"`` (로컬 TFR).
+        gemini_api_key: Gemini API 키. ``None`` 이면 ``GEMINI_API_KEY`` 환경변수 사용.
+        gemini_model: Gemini 이미지 생성 모델명.
+        style_prompt: TFR 스타일 프롬프트. ``None`` 이면 기본 프롬프트 사용.
+    """
+
+    def __init__(
+        self,
+        mode: str = "gemini",
+        gemini_api_key: str | None = None,
+        gemini_model: str = "gemini-3.1-flash-image-preview",
+        style_prompt: str | None = None,
+    ) -> None:
+        if mode not in ("gemini", "local"):
+            raise ValueError(f"mode은 'gemini' 또는 'local'이어야 합니다: {mode!r}")
+
+        self.mode = mode
         self.face_detector = FaceDetector()
         self.styler = TFRStyler()
         self.scanline = ScanlineOverlay()
 
+        # Gemini 설정
+        self.gemini_api_key = gemini_api_key or os.environ.get("GEMINI_API_KEY", "")
+        self.gemini_model = gemini_model
+        self.style_prompt = style_prompt or DEFAULT_TFR_STYLE_PROMPT
+        self._gemini_client = None
+
+    @property
+    def gemini_client(self):
+        """Gemini API 클라이언트 (지연 초기화)."""
+        if self._gemini_client is None:
+            if not self.gemini_api_key:
+                raise ValueError(
+                    "Gemini 모드에는 GEMINI_API_KEY가 필요합니다. "
+                    "환경변수를 설정하거나 gemini_api_key를 전달하세요."
+                )
+            from google import genai
+            self._gemini_client = genai.Client(api_key=self.gemini_api_key)
+        return self._gemini_client
+
     # ------------------------------------------------------------------
-    # 단일 이미지 처리 (핵심)
+    # 단일 이미지 처리 — 모드에 따라 분기
     # ------------------------------------------------------------------
 
     def process_single(self, input_path: Path, output_path: Path) -> bool:
-        """로컬 이미지를 TFR 스타일 초상화로 변환한다.
+        """이미지를 TFR 스타일 초상화로 변환한다.
 
-        전체 파이프라인:
-        1. 이미지 로드
-        2. 배경 제거 (rembg)
-        3. 인물 마스크 추출
-        4. 얼굴 감지 + 스마트 크롭
-        5. 부위별 마스크 생성
-        6. 부위별 TFR 스타일 적용 (옷 색상 보존)
-        7. 스캔라인 오버레이
-        8. 보라색 배경 합성
-        9. 저장
+        ``mode="gemini"`` 이면 Gemini 스타일 전사,
+        ``mode="local"`` 이면 로컬 TFR 파이프라인을 사용한다.
 
         Returns:
             성공 시 ``True``.
+        """
+        if self.mode == "gemini":
+            return self._process_gemini(input_path, output_path)
+        return self._process_local(input_path, output_path)
+
+    # ------------------------------------------------------------------
+    # Gemini 파이프라인
+    # ------------------------------------------------------------------
+
+    def _process_gemini(self, input_path: Path, output_path: Path) -> bool:
+        """Gemini 기반 TFR 포트레잇 생성.
+
+        파이프라인:
+        1. 이미지 로드
+        2. 얼굴 감지 + 스마트 크롭 (500×678 — Gemini 입력용 고해상도)
+        3. 배경 제거 → 보라 배경 합성
+        4. Gemini에 스타일 프롬프트 + 이미지 전송
+        5. 결과 156×210 리사이즈
+        6. 스캔라인 오버레이
+        7. 저장
+        """
+        from google.genai import types
+
+        # 1. 로드
+        try:
+            img = Image.open(input_path).convert("RGB")
+        except Exception as exc:
+            logger.error(f"이미지 로드 실패: {input_path} — {exc}")
+            return False
+
+        logger.info(
+            f"[Gemini] 처리 시작: {input_path.name} ({img.size[0]}×{img.size[1]})"
+        )
+
+        # 2. 스마트 크롭 (고해상도)
+        cropped = self.face_detector.smart_crop(
+            img, GEMINI_CROP_WIDTH, GEMINI_CROP_HEIGHT
+        )
+
+        # 3. 배경 제거 → 보라 배경 합성
+        nobg = self._remove_background(cropped)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+
+        # nobg 저장 (GFX용)
+        nobg_path = output_path.parent / f"{output_path.stem}_nobg.png"
+        nobg.save(str(nobg_path), "PNG")
+        logger.info(f"배경 제거 이미지 저장: {nobg_path}")
+
+        # 보라 배경 위에 합성
+        bg = Image.new("RGBA", nobg.size, (*_hex_to_rgb(BG_COLOR_HEX), 255))
+        if nobg.mode == "RGBA":
+            bg.paste(nobg, (0, 0), nobg)
+        else:
+            bg.paste(nobg, (0, 0))
+        composite = bg.convert("RGB")
+
+        # 4. Gemini 스타일 전사
+        logger.info(f"[Gemini] 스타일 전사 요청: {self.gemini_model}")
+        styled = None
+        try:
+            response = self.gemini_client.models.generate_content(
+                model=self.gemini_model,
+                contents=[self.style_prompt, composite],
+                config=types.GenerateContentConfig(
+                    response_modalities=["TEXT", "IMAGE"],
+                ),
+            )
+            for part in response.parts:
+                if part.inline_data is not None:
+                    styled = Image.open(BytesIO(part.inline_data.data))
+                    logger.info("[Gemini] 스타일 전사 성공")
+                    break
+        except Exception as exc:
+            logger.error(f"[Gemini] 스타일 전사 실패: {exc}")
+
+        if styled is None:
+            logger.warning("[Gemini] 이미지 미반환 → 로컬 TFR fallback")
+            return self._process_local(input_path, output_path)
+
+        # 5. 리사이즈
+        final = styled.resize(
+            (PORTRAIT_WIDTH, PORTRAIT_HEIGHT), Image.LANCZOS
+        )
+
+        # 6. 스캔라인
+        final = self.scanline.apply_scanlines(final, blend_mode="glow")
+
+        # 7. 저장
+        final.save(str(output_path), "PNG")
+        logger.info(f"[Gemini] 초상화 생성 완료: {output_path}")
+        return True
+
+    # ------------------------------------------------------------------
+    # 로컬 TFR 파이프라인 (기존)
+    # ------------------------------------------------------------------
+
+    def _process_local(self, input_path: Path, output_path: Path) -> bool:
+        """로컬 TFR 스타일 파이프라인 (Gemini 없이).
+
+        파이프라인:
+        1. 이미지 로드
+        2. 스마트 크롭 (156×210)
+        3. 배경 제거 + 인물 마스크
+        4. 부위별 TFR 스타일 적용
+        5. 스캔라인 오버레이
+        6. 보라 배경 합성
+        7. 저장
         """
         try:
             img = Image.open(input_path).convert("RGBA")
@@ -70,53 +232,52 @@ class PortraitPipeline:
             logger.error(f"이미지 로드 실패: {input_path} — {exc}")
             return False
 
-        logger.info(f"처리 시작: {input_path.name} ({img.size[0]}×{img.size[1]})")
+        logger.info(
+            f"[Local] 처리 시작: {input_path.name} ({img.size[0]}×{img.size[1]})"
+        )
 
-        # 1. 원본 RGB로 얼굴 감지 + 스마트 크롭 (배경 제거 전!)
+        # 1. 스마트 크롭
         img_rgb = img.convert("RGB")
         img_cropped = self.face_detector.smart_crop(
             img_rgb, PORTRAIT_WIDTH, PORTRAIT_HEIGHT
         )
 
-        # 2. 크롭된 이미지에서 배경 제거
+        # 2. 배경 제거 + 마스크
         img_cropped_nobg = self._remove_background(img_cropped)
         person_mask = self._extract_person_mask(img_cropped_nobg)
 
-        # 마스크 팽창(dilate) — rembg가 머리카락 등을 과하게 잘라내는 문제 보완
         import cv2 as _cv2
         kernel = _cv2.getStructuringElement(_cv2.MORPH_ELLIPSE, (5, 5))
         person_mask = _cv2.dilate(person_mask, kernel, iterations=2)
 
-        # 배경 제거 이미지 별도 저장 (나중에 GFX용)
+        # nobg 저장
         nobg_path = output_path.parent / f"{output_path.stem}_nobg.png"
+        nobg_path.parent.mkdir(parents=True, exist_ok=True)
         img_cropped_nobg.save(str(nobg_path), "PNG")
         logger.info(f"배경 제거 이미지 저장: {nobg_path}")
 
-        # 3. 부위별 마스크 생성 (원본 크롭 RGB에서 — 배경 있는 상태)
+        # 3. 부위별 마스크 + TFR 스타일
         region_masks, landmarks = self.face_detector.get_region_masks(img_cropped)
 
-        # 4. 스타일 적용
         if region_masks is not None:
-            # 부위별 처리 (얼굴 감지 성공)
             logger.info("부위별 TFR 스타일 적용")
             styled = self.styler.apply_regional_style(
                 img_cropped, region_masks, person_mask
             )
         else:
-            # 얼굴 감지 실패 → 단순 전체 스타일
             logger.warning("얼굴 감지 실패 → 단순 TFR 스타일 적용")
             styled = self.styler.apply_full_style(img_cropped)
 
-        # 5. 스캔라인 오버레이
+        # 4. 스캔라인
         styled = self.scanline.apply_scanlines(styled, blend_mode="glow")
 
-        # 6. 보라색 배경 합성
+        # 5. 보라 배경 합성
         styled = self._composite_on_bg(styled, person_mask)
 
-        # 7. 저장
+        # 6. 저장
         output_path.parent.mkdir(parents=True, exist_ok=True)
         styled.save(str(output_path), "PNG")
-        logger.info(f"초상화 생성 완료: {output_path}")
+        logger.info(f"[Local] 초상화 생성 완료: {output_path}")
         return True
 
     # ------------------------------------------------------------------
@@ -148,7 +309,6 @@ class PortraitPipeline:
         )
 
         for idx, path in enumerate(files):
-            # 출력 파일명 생성
             if tag and name_prefix:
                 suffix = "" if idx == 0 else str(idx)
                 out_name = f"{tag}_{name_prefix}{suffix}.png"
@@ -188,7 +348,7 @@ class PortraitPipeline:
     def _remove_background(image: Image.Image) -> Image.Image:
         """rembg로 배경을 제거한다."""
         try:
-            from tools.portrait_generator.rembg_wrapper import remove_background
+            from hoi4_agent.tools.portrait.rembg_wrapper import remove_background
             return remove_background(image)
         except Exception as exc:
             logger.debug(f"배경 제거 실패 — 원본 반환: {exc}")

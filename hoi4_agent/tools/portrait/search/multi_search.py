@@ -16,7 +16,7 @@ import requests
 from loguru import logger
 from PIL import Image
 
-from tools.portrait_generator.search.query_expander import (
+from hoi4_agent.tools.portrait.search.query_expander import (
     expand_queries,
     get_search_languages,
 )

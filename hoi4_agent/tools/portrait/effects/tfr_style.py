@@ -25,7 +25,7 @@ def _hex_to_rgb(hex_color: str) -> tuple[int, int, int]:
 
 # TFR 상수
 try:
-    from tools.shared.constants import (
+    from hoi4_agent.tools.shared.constants import (
         SKIN_COLOR_HEX,
         LIP_COLOR_HEX,
         JAW_COLOR_HEX,
