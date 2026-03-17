@@ -46,7 +46,12 @@ class MultiSourceSearch:
         self.min_size = min_size
         self.session = requests.Session()
         self.session.headers.update({
-            "User-Agent": "HOI4ModdingAgent/4.0 (portrait-pipeline; contact@example.com)",
+            "User-Agent": (
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/131.0.0.0 Safari/537.36"
+            ),
+            "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
         })
 
     # ------------------------------------------------------------------
@@ -248,12 +253,16 @@ class MultiSourceSearch:
                     return None
                 img = Image.open(local_path)
             else:
+                dl_url = _wikimedia_full_url(url)
+                headers = {}
+                if "wikimedia.org" in dl_url or "wikipedia.org" in dl_url:
+                    headers["Referer"] = "https://en.wikipedia.org/"
                 resp = None
                 for attempt in range(max_retries):
-                    resp = self.session.get(url, timeout=15)
+                    resp = self.session.get(dl_url, timeout=15, headers=headers)
                     if resp.status_code == 429:
                         wait = 2 ** attempt
-                        logger.debug(f"429 rate limit, retry in {wait}s: {url[:60]}")
+                        logger.debug(f"429 rate limit, retry in {wait}s: {dl_url[:60]}")
                         time.sleep(wait)
                         continue
                     break
@@ -359,3 +368,20 @@ class MultiSourceSearch:
 
         logger.info(f"해시 중복 제거: {len(image_paths)} → {len(unique)}")
         return unique
+
+
+import re as _re
+
+def _wikimedia_full_url(url: str) -> str:
+    """Wikimedia /thumb/ URL을 원본 전체 해상도 URL로 변환.
+
+    /commons/thumb/a/ab/File.jpg/500px-File.jpg → /commons/a/ab/File.jpg
+    Wikimedia 썸네일은 403을 반환하는 경우가 많아 원본이 더 안정적이다.
+    """
+    m = _re.match(
+        r"(https://upload\.wikimedia\.org/wikipedia/commons)/thumb/(\w/\w\w/.+?)/\d+px-.+",
+        url,
+    )
+    if m:
+        return f"{m.group(1)}/{m.group(2)}"
+    return url
