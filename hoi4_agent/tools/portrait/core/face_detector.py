@@ -132,16 +132,15 @@ class FaceDetector:
         face_cx = fx + fw // 2
         face_cy = fy + fh // 2
 
-        # 크롭 영역: 얼굴이 프레임의 ~49% 높이를 차지하도록 (TFR 기준)
-        target_face_h_ratio = 0.492
+        # 실측 기반 TFR 포트레잇 기준: 얼굴높이 ~47%, 얼굴중심 Y ~49%
+        target_face_h_ratio = 0.47
         crop_h = min(int(fh / target_face_h_ratio), img_h)
         crop_w = int(crop_h * aspect)
         if crop_w > img_w:
             crop_w = img_w
             crop_h = int(crop_w / aspect)
 
-        # 얼굴 중심이 Y 51% 위치에 오도록 (TFR 기준)
-        desired_face_y = int(crop_h * 0.508)
+        desired_face_y = int(crop_h * 0.49)
         crop_y = face_cy - desired_face_y
         crop_x = face_cx - crop_w // 2
 

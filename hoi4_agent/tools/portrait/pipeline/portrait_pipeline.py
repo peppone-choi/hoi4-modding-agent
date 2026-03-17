@@ -40,16 +40,15 @@ GEMINI_CROP_HEIGHT = 678  # 156:210 비율 유지
 # Idenn의 TFR 초상화 튜토리얼 기반.
 # Gemini에게 "HOI4 TFR 모드 포트레잇"이 무엇인지 최대한 명시적으로 설명.
 DEFAULT_TFR_STYLE_PROMPT = (
-    "Edit this portrait photo for a Hearts of Iron IV leader portrait. "
-    "Keep the photo PHOTOREALISTIC — do NOT paint, stylize, or cartoonify. "
-    "Apply only color grading:\n"
-    "1. Keep the photo fully photorealistic. Preserve every facial detail, "
-    "skin texture, hair, and clothing exactly as-is.\n"
-    "2. Desaturate the entire image ~40%. Shift color temperature slightly warm.\n"
-    "3. Lower brightness ~10%, increase contrast ~20% for a moody feel.\n"
-    "4. Background MUST be solid dark purple (#3D2B50). Replace any existing background.\n"
-    "5. Do NOT alter the person's face, expression, clothing, or pose in any way.\n"
-    "6. Output a clean head-and-shoulders portrait."
+    "Edit this portrait photo. Keep it PHOTOREALISTIC — do NOT paint or stylize. "
+    "Apply only color grading to the PERSON:\n"
+    "1. Preserve every facial detail, skin texture, hair, and clothing exactly.\n"
+    "2. Desaturate the person ~40%. Shift color temperature slightly warm.\n"
+    "3. Lower brightness ~10%, increase contrast ~20%.\n"
+    "4. The white background MUST stay pure white (#FFFFFF). Do NOT add any "
+    "color, gradient, shadow, or vignette to the background.\n"
+    "5. Do NOT alter the person's face, expression, clothing, or pose.\n"
+    "6. Output the same image with only color grading applied to the person."
 )
 
 
@@ -128,16 +127,16 @@ class PortraitPipeline:
 
         파이프라인:
         1. 이미지 로드
-        2. 얼굴 감지 + 스마트 크롭 (500×678 — Gemini 입력용 고해상도)
-        3. 배경 제거 → 보라 배경 합성
-        4. Gemini에 스타일 프롬프트 + 이미지 전송
-        5. 결과 156×210 리사이즈
-        6. 스캔라인 오버레이
-        7. 저장
+        2. 얼굴 감지 + 스마트 크롭 (TFR 얼굴 비율 기준)
+        3. 배경 제거
+        4. Gemini 컬러 그레이딩 (배경 없는 상태로 전달)
+        5. 156×210 리사이즈
+        6. 보라 배경 합성 (맨 마지막)
+        7. 스캔라인 오버레이
+        8. 저장
         """
         from google.genai import types
 
-        # 1. 로드
         try:
             img = Image.open(input_path).convert("RGB")
         except Exception as exc:
@@ -148,35 +147,31 @@ class PortraitPipeline:
             f"[Gemini] 처리 시작: {input_path.name} ({img.size[0]}×{img.size[1]})"
         )
 
-        # 2. 스마트 크롭 (고해상도)
+        # 1. 스마트 크롭 (TFR 얼굴 비율 기준, 고해상도)
         cropped = self.face_detector.smart_crop(
             img, GEMINI_CROP_WIDTH, GEMINI_CROP_HEIGHT
         )
 
-        # 3. 배경 제거 → 보라 배경 합성
+        # 2. 배경 제거
         nobg = self._remove_background(cropped)
         output_path.parent.mkdir(parents=True, exist_ok=True)
-
-        # nobg 저장 (GFX용)
         nobg_path = output_path.parent / f"{output_path.stem}_nobg.png"
         nobg.save(str(nobg_path), "PNG")
         logger.info(f"배경 제거 이미지 저장: {nobg_path}")
 
-        # 보라 배경 위에 합성
-        bg = Image.new("RGBA", nobg.size, (*_hex_to_rgb(BG_COLOR_HEX), 255))
+        # 3. Gemini 컬러 그레이딩 (흰색 배경 위에 올려서 전달 → 배경은 파이프라인이 처리)
         if nobg.mode == "RGBA":
-            bg.paste(nobg, (0, 0), nobg)
+            white_bg = Image.new("RGBA", nobg.size, (255, 255, 255, 255))
+            white_bg.paste(nobg, (0, 0), nobg)
+            gemini_input = white_bg.convert("RGB")
         else:
-            bg.paste(nobg, (0, 0))
-        composite = bg.convert("RGB")
-
-        # 4. Gemini 스타일 전사
-        logger.info(f"[Gemini] 스타일 전사 요청: {self.gemini_model}")
+            gemini_input = nobg
+        logger.info(f"[Gemini] 컬러 그레이딩 요청: {self.gemini_model}")
         styled = None
         try:
             response = self.gemini_client.models.generate_content(
                 model=self.gemini_model,
-                contents=[self.style_prompt, composite],
+                contents=[self.style_prompt, gemini_input],
                 config=types.GenerateContentConfig(
                     response_modalities=["TEXT", "IMAGE"],
                 ),
@@ -184,19 +179,24 @@ class PortraitPipeline:
             for part in response.parts:
                 if part.inline_data is not None:
                     styled = Image.open(BytesIO(part.inline_data.data))
-                    logger.info("[Gemini] 스타일 전사 성공")
+                    logger.info("[Gemini] 컬러 그레이딩 성공")
                     break
         except Exception as exc:
-            logger.error(f"[Gemini] 스타일 전사 실패: {exc}")
+            logger.error(f"[Gemini] 컬러 그레이딩 실패: {exc}")
 
         if styled is None:
             logger.warning("[Gemini] 이미지 미반환 → 로컬 TFR fallback")
             return self._process_local(input_path, output_path)
 
-        # 5. 리사이즈
-        final = styled.resize(
-            (PORTRAIT_WIDTH, PORTRAIT_HEIGHT), Image.LANCZOS
+        # 4. 리사이즈
+        final = styled.convert("RGBA") if styled.mode != "RGBA" else styled
+        final = final.resize((PORTRAIT_WIDTH, PORTRAIT_HEIGHT), Image.LANCZOS)
+
+        # 5. 보라 배경 합성 (맨 마지막)
+        person_mask = self._extract_person_mask(
+            nobg.resize((PORTRAIT_WIDTH, PORTRAIT_HEIGHT), Image.LANCZOS)
         )
+        final = self._composite_on_bg(final, person_mask)
 
         # 6. 스캔라인
         final = self.scanline.apply_scanlines(final, blend_mode="glow")
