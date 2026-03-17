@@ -1,0 +1,74 @@
+# ===================================================================
+# HOI4 Modding Agent - Git Ignore
+# ===================================================================
+
+# Secrets & API Keys
+.env
+*.env
+!.env.example
+
+# Database Files
+*.db
+*.sqlite
+*.sqlite3
+.chat_sessions.db
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+venv/
+ENV/
+env/
+.venv/
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.mypy_cache/
+.dmypy.json
+dmypy.json
+*.log
+
+# IDE & Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+._*
+
+# AI Assistant Context (optional, user preference)
+.claude/
+.omc/
+.omx/
+
+# Temporary Files
+*.tmp
+*.temp
+*.bak
+*.backup
+.backups/
+
+# OS
+Thumbs.db
+Desktop.ini
