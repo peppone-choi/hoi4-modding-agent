@@ -241,8 +241,7 @@ class TestPortraitPipelineGemini:
         pipeline = PortraitPipeline(style_prompt=custom)
         assert pipeline.style_prompt == custom
 
-    def test_default_style_prompt_has_color_grading(self):
-        """기본 프롬프트: 실사 유지 + 컬러 그레이딩 키워드."""
+    def test_default_style_prompt(self):
         from hoi4_agent.tools.portrait.pipeline.portrait_pipeline import (
             PortraitPipeline,
             DEFAULT_TFR_STYLE_PROMPT,
@@ -251,8 +250,7 @@ class TestPortraitPipelineGemini:
         assert pipeline.style_prompt == DEFAULT_TFR_STYLE_PROMPT
         prompt_lower = pipeline.style_prompt.lower()
         assert "photorealistic" in prompt_lower
-        assert "color grading" in prompt_lower
-        assert "paint" in prompt_lower  # "do NOT paint"
+        assert "#3d2b50" in prompt_lower
 
     def test_gemini_fallback_to_local(self, sample_portrait, tmp_dir):
         """Gemini 실패 시 로컬 TFR fallback 동작 확인.
