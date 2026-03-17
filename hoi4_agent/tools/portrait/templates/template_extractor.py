@@ -13,13 +13,13 @@ from PIL import Image
 from loguru import logger
 
 try:
-    from tools.shared.constants import PORTRAIT_WIDTH, PORTRAIT_HEIGHT
+    from hoi4_agent.tools.shared.constants import PORTRAIT_WIDTH, PORTRAIT_HEIGHT
 except ImportError:
     PORTRAIT_WIDTH = 156
     PORTRAIT_HEIGHT = 210
 
-from tools.portrait_generator.core.face_detector import FaceDetector
-from tools.portrait_generator.core.region_masks import (
+from hoi4_agent.tools.portrait.core.face_detector import FaceDetector
+from hoi4_agent.tools.portrait.core.region_masks import (
     FACE_OVAL,
     landmarks_to_points,
 )

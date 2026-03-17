@@ -1112,7 +1112,7 @@ LIMIT 5
         # 초상화 생성
         if self.generate_portraits and not person.has_portrait:
             try:
-                from tools.portrait_generator.pipeline.portrait_pipeline import PortraitPipeline
+                from hoi4_agent.tools.portrait.pipeline.portrait_pipeline import PortraitPipeline
                 portrait = PortraitPipeline()
                 portrait_path = portrait.process_from_wiki(
                     person.name, person.char_id, country_tag, self.mod_root

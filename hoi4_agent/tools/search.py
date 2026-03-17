@@ -81,10 +81,7 @@ def _search_tavily(query: str, max_results: int = 5) -> list[dict[str, str]]:
 def _search_ddgs(query: str, max_results: int = 5) -> list[dict[str, str]]:
     """DuckDuckGo 텍스트 검색. 실패 시 빈 리스트."""
     try:
-        try:
-            from ddgs import DDGS  # 신규 패키지명
-        except ImportError:
-            from duckduckgo_search import DDGS  # 레거시 호환
+        from ddgs import DDGS
         results: list[dict[str, str]] = []
         with DDGS() as ddgs:
             for r in ddgs.text(query, max_results=max_results):
