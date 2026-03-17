@@ -52,9 +52,10 @@ def main():
 
     if "mcp_manager" not in st.session_state:
         from hoi4_agent.core.mcp_client import MCPManager
-        st.session_state.mcp_manager = MCPManager.from_config_file(
-            mod_root / "mcp_servers.json"
-        )
+        mcp_cfg = mod_root / "mcp_servers.json"
+        if not mcp_cfg.exists():
+            mcp_cfg = Path(__file__).resolve().parents[2] / "mcp_servers.json"
+        st.session_state.mcp_manager = MCPManager.from_config_file(mcp_cfg)
 
     if "current_session_id" not in st.session_state:
         latest = st.session_state.chat_manager.get_latest_session()
@@ -76,9 +77,12 @@ def main():
     )
 
     st.title(f"🎮 {ctx.mod_name or 'HOI4'} Modding Agent")
+    mcp_mgr = st.session_state.get("mcp_manager")
+    mcp_count = len(mcp_mgr.discover_tools()) if mcp_mgr and mcp_mgr.available else 0
+    tool_total = 16 + mcp_count
     st.caption(
         f"v4 · {len(ctx.countries)}개 국가 · "
-        f"{len(ctx.characters)}개 캐릭터 · 16개 도구 · 영구 세션"
+        f"{len(ctx.characters)}개 캐릭터 · {tool_total}개 도구 · 영구 세션"
     )
 
     if not anthropic_key:
