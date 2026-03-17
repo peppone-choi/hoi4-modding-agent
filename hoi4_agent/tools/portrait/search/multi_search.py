@@ -73,7 +73,8 @@ class MultiSourceSearch:
         all_candidates: list[ImageCandidate] = []
         with ThreadPoolExecutor(max_workers=5) as pool:
             futures = []
-            for query in queries[:8]:  # 쿼리 수 제한
+            for query in queries[:8]:
+                futures.append(pool.submit(self._search_tavily, query))
                 futures.append(pool.submit(self._search_duckduckgo, query))
                 futures.append(pool.submit(self._search_bing, query))
                 futures.append(pool.submit(self._search_wikimedia, query))
@@ -112,6 +113,34 @@ class MultiSourceSearch:
     # ------------------------------------------------------------------
     # 개별 소스 검색
     # ------------------------------------------------------------------
+
+    def _search_tavily(self, query: str) -> list[ImageCandidate]:
+        """Tavily 이미지 검색. TAVILY_API_KEY 필요."""
+        import os
+        api_key = os.environ.get("TAVILY_API_KEY", "")
+        if not api_key:
+            return []
+        try:
+            from tavily import TavilyClient
+            client = TavilyClient(api_key=api_key)
+            response = client.search(
+                query=f"{query} portrait photo",
+                max_results=self.max_per_source,
+                include_images=True,
+                search_depth="advanced",
+            )
+            results = []
+            for url in response.get("images", []):
+                if url and isinstance(url, str):
+                    results.append(ImageCandidate(
+                        url=url, source="tavily", query=query,
+                        width=0, height=0,
+                    ))
+            logger.debug(f"Tavily 이미지 {len(results)}개: [{query}]")
+            return results
+        except Exception as exc:
+            logger.debug(f"Tavily 검색 실패 [{query}]: {exc}")
+            return []
 
     def _search_duckduckgo(self, query: str) -> list[ImageCandidate]:
         """DuckDuckGo 이미지 검색."""
