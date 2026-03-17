@@ -24,6 +24,7 @@ setup(
         "search": [
             "ddgs>=7.0.0",
             "tavily-python>=0.5.0",
+            "icrawler>=0.6.6",
         ],
         "portrait": [
             # Gemini API

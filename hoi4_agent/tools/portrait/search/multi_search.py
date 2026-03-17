@@ -46,11 +46,7 @@ class MultiSourceSearch:
         self.min_size = min_size
         self.session = requests.Session()
         self.session.headers.update({
-            "User-Agent": (
-                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/120.0.0.0 Safari/537.36"
-            )
+            "User-Agent": "HOI4ModdingAgent/4.0 (portrait-pipeline; contact@example.com)",
         })
 
     # ------------------------------------------------------------------
@@ -120,7 +116,7 @@ class MultiSourceSearch:
     def _search_duckduckgo(self, query: str) -> list[ImageCandidate]:
         """DuckDuckGo 이미지 검색."""
         try:
-            from duckduckgo_search import DDGS
+            from ddgs import DDGS
             results = []
             with DDGS() as ddgs:
                 for r in ddgs.images(query, max_results=self.max_per_source):
@@ -212,28 +208,33 @@ class MultiSourceSearch:
     # ------------------------------------------------------------------
 
     def _download_image(
-        self, candidate: ImageCandidate, person_name: str
+        self, candidate: ImageCandidate, person_name: str, max_retries: int = 3,
     ) -> Path | None:
-        """이미지를 다운로드하고 품질을 확인한다."""
+        """이미지를 다운로드하고 품질을 확인한다. 429 시 exponential backoff."""
         url = candidate.url
         try:
             if url.startswith("file://"):
-                # icrawler가 이미 다운로드한 로컬 파일
                 local_path = Path(url.replace("file://", ""))
                 if not local_path.exists():
                     return None
                 img = Image.open(local_path)
             else:
-                resp = self.session.get(url, timeout=15)
+                resp = None
+                for attempt in range(max_retries):
+                    resp = self.session.get(url, timeout=15)
+                    if resp.status_code == 429:
+                        wait = 2 ** attempt
+                        logger.debug(f"429 rate limit, retry in {wait}s: {url[:60]}")
+                        time.sleep(wait)
+                        continue
+                    break
                 resp.raise_for_status()
                 img = Image.open(BytesIO(resp.content))
 
-            # 품질 필터: 최소 크기
             w, h = img.size
             if w < self.min_size or h < self.min_size:
                 return None
 
-            # 저장
             safe_name = person_name.replace(" ", "_").lower()
             url_hash = hashlib.md5(url.encode()).hexdigest()[:8]
             out_path = self.cache_dir / f"{safe_name}_{candidate.source}_{url_hash}.png"

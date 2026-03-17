@@ -94,8 +94,8 @@ def expand_queries(
     if native_name:
         queries.append(native_name)
 
-    # 3. 직함 추가
-    if title:
+    # 3. 직함 추가 (person_name에 이미 title이 포함된 경우 건너뜀)
+    if title and title.lower() not in person_name.lower():
         queries.append(f"{person_name} {title}")
 
     # 4. 맥락 키워드 추가
