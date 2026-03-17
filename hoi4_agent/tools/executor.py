@@ -3,7 +3,6 @@ Tool execution engine for HOI4 Modding Agent.
 Handles all tool invocations from the Claude API.
 """
 import json
-from io import BytesIO
 from pathlib import Path
 
 
@@ -152,39 +151,21 @@ class ToolExecutor:
     
     def _generate_portrait(self, inp: dict) -> str:
         try:
-            from google import genai
-            from google.genai import types
-            from PIL import Image
-            from rembg import remove, new_session
-            from hoi4_agent.tools.portrait.core.face_detector import FaceDetector
-            from hoi4_agent.tools.portrait.effects.scanline import ScanlineOverlay
+            from hoi4_agent.tools.portrait.pipeline.portrait_pipeline import PortraitPipeline
 
-            img = Image.open(inp["input_image_path"]).convert("RGB")
-            cropped = FaceDetector().smart_crop(img, 500, 678)
-            sess = new_session("u2net_human_seg")
-            buf = BytesIO()
-            cropped.save(buf, format="PNG")
-            nobg = Image.open(BytesIO(remove(buf.getvalue(), session=sess))).convert("RGBA")
-            out = self.mod_root / inp["output_path"]
-            nobg_path = out.parent / f"{out.stem}_nobg.png"
-            nobg_path.parent.mkdir(parents=True, exist_ok=True)
-            nobg.save(str(nobg_path))
-            bg = Image.new("RGBA", nobg.size, (61, 43, 80, 255))
-            bg.paste(nobg, (0, 0), nobg)
-            client = genai.Client(api_key=self.gemini_key)
-            resp = client.models.generate_content(
-                model="gemini-3.1-flash-image-preview",
-                contents=[inp["style_prompt"], bg.convert("RGB")],
-                config=types.GenerateContentConfig(response_modalities=["TEXT", "IMAGE"]),
+            input_path = Path(inp["input_image_path"])
+            output_path = self.mod_root / inp["output_path"]
+
+            mode = "gemini" if self.gemini_key else "local"
+            pipeline = PortraitPipeline(
+                mode=mode,
+                gemini_api_key=self.gemini_key,
+                style_prompt=inp.get("style_prompt"),
             )
-            for part in resp.parts:
-                if part.inline_data is not None:
-                    result = Image.open(BytesIO(part.inline_data.data))
-                    final = ScanlineOverlay().apply_scanlines(
-                        result.resize((156, 210), Image.LANCZOS), blend_mode="glow"
-                    )
-                    final.save(str(out))
-                    return f"[포트레잇 완료] {inp['output_path']}"
-            return "[포트레잇 오류] Gemini 이미지 미반환"
+
+            success = pipeline.process_single(input_path, output_path)
+            if success:
+                return f"[포트레잇 완료] {inp['output_path']}"
+            return "[포트레잇 오류] 파이프라인 처리 실패"
         except Exception as e:
             return f"[포트레잇 오류] {e}"

@@ -40,20 +40,16 @@ GEMINI_CROP_HEIGHT = 678  # 156:210 비율 유지
 # Idenn의 TFR 초상화 튜토리얼 기반.
 # Gemini에게 "HOI4 TFR 모드 포트레잇"이 무엇인지 최대한 명시적으로 설명.
 DEFAULT_TFR_STYLE_PROMPT = (
-    "Transform this portrait into a Hearts of Iron IV TFR (The Fallen Republic) "
-    "mod-style leader portrait. Follow these rules strictly:\n"
-    "1. Convert to a semi-painterly digital painting — NOT photorealistic, "
-    "NOT cartoon. Think oil painting with visible brushstrokes but retaining "
-    "facial likeness.\n"
-    "2. Desaturate colors significantly. Use muted, earthy warm tones. "
-    "Skin should be tinted with warm brown-orange (#936F60). Lips: #936B60. "
-    "Eyes: grayish (#898989).\n"
-    "3. Overall mood: dark, moody, dramatic. Lower brightness ~15%. "
-    "Increase contrast ~30%.\n"
-    "4. Keep the person's face, expression, and facial structure recognizable.\n"
-    "5. Background MUST be solid dark purple (#3D2B50).\n"
-    "6. Clothing should be slightly desaturated and darkened but keep original color hue.\n"
-    "7. Output as a clean portrait with head and upper torso visible."
+    "Edit this portrait photo for a Hearts of Iron IV leader portrait. "
+    "Keep the photo PHOTOREALISTIC — do NOT paint, stylize, or cartoonify. "
+    "Apply only color grading:\n"
+    "1. Keep the photo fully photorealistic. Preserve every facial detail, "
+    "skin texture, hair, and clothing exactly as-is.\n"
+    "2. Desaturate the entire image ~40%. Shift color temperature slightly warm.\n"
+    "3. Lower brightness ~10%, increase contrast ~20% for a moody feel.\n"
+    "4. Background MUST be solid dark purple (#3D2B50). Replace any existing background.\n"
+    "5. Do NOT alter the person's face, expression, clothing, or pose in any way.\n"
+    "6. Output a clean head-and-shoulders portrait."
 )
 
 
