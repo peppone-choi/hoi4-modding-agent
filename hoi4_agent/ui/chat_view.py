@@ -121,6 +121,7 @@ def _handle_input(ctx: ModContext, mod_root: Path, config):
                 system=system_prompt,
                 tools=all_tools,
                 messages=api_msgs,
+                tool_choice={"type": "any"} if rounds == 1 else {"type": "auto"},
             ) as stream:
                 resp_text = st.write_stream(stream.text_stream)
                 resp = stream.get_final_message()
