@@ -6,6 +6,7 @@ Google, Yandex, Bing, DuckDuckGo, Wikimedia Commons에서 병렬 검색 후
 from __future__ import annotations
 
 import hashlib
+import re
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from io import BytesIO
@@ -39,11 +40,13 @@ class MultiSourceSearch:
         cache_dir: Path | None = None,
         max_per_source: int = 10,
         min_size: int = 200,
+        request_delay: float = 0.5,
     ):
         self.cache_dir = cache_dir or Path("/tmp/portrait_search_cache")
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.max_per_source = max_per_source
         self.min_size = min_size
+        self.request_delay = request_delay
         self.session = requests.Session()
         self.session.headers.update({
             "User-Agent": (
@@ -242,7 +245,7 @@ class MultiSourceSearch:
     # ------------------------------------------------------------------
 
     def _download_image(
-        self, candidate: ImageCandidate, person_name: str, max_retries: int = 3,
+        self, candidate: ImageCandidate, person_name: str, max_retries: int = 5,
     ) -> Path | None:
         """이미지를 다운로드하고 품질을 확인한다. 429 시 exponential backoff."""
         url = candidate.url
@@ -253,20 +256,30 @@ class MultiSourceSearch:
                     return None
                 img = Image.open(local_path)
             else:
-                dl_url = _wikimedia_full_url(url)
+                time.sleep(self.request_delay)
+                
+                dl_url = _wikimedia_thumbnail_url(url, size=800)
                 headers = {}
                 if "wikimedia.org" in dl_url or "wikipedia.org" in dl_url:
                     headers["Referer"] = "https://en.wikipedia.org/"
+                
                 resp = None
                 for attempt in range(max_retries):
                     resp = self.session.get(dl_url, timeout=15, headers=headers)
                     if resp.status_code == 429:
-                        wait = 2 ** attempt
+                        wait = min(2 ** attempt, 30)
                         logger.debug(f"429 rate limit, retry in {wait}s: {dl_url[:60]}")
                         time.sleep(wait)
                         continue
                     break
+                
+                if resp is None:
+                    logger.debug(f"다운로드 실패 (no response): {dl_url[:60]}")
+                    return None
+                
                 resp.raise_for_status()
+                
+                Image.MAX_IMAGE_PIXELS = 200_000_000
                 img = Image.open(BytesIO(resp.content))
 
             w, h = img.size
@@ -370,18 +383,28 @@ class MultiSourceSearch:
         return unique
 
 
-import re as _re
+def _wikimedia_thumbnail_url(url: str, size: int = 800) -> str:
+    """Wikimedia URL을 적절한 크기의 썸네일 URL로 변환.
 
-def _wikimedia_full_url(url: str) -> str:
-    """Wikimedia /thumb/ URL을 원본 전체 해상도 URL로 변환.
-
-    /commons/thumb/a/ab/File.jpg/500px-File.jpg → /commons/a/ab/File.jpg
-    Wikimedia 썸네일은 403을 반환하는 경우가 많아 원본이 더 안정적이다.
+    WikiMedia는 full-size 다운로드 시 429 rate limit을 적용하므로
+    썸네일을 사용하는 것이 권장됨. (https://w.wiki/GHai)
+    
+    /commons/a/ab/File.jpg → /commons/thumb/a/ab/File.jpg/800px-File.jpg
+    /commons/thumb/a/ab/File.jpg/500px-File.jpg → /commons/thumb/a/ab/File.jpg/800px-File.jpg
     """
-    m = _re.match(
-        r"(https://upload\.wikimedia\.org/wikipedia/commons)/thumb/(\w/\w\w/.+?)/\d+px-.+",
+    base_match = re.match(
+        r"(https://upload\.wikimedia\.org/wikipedia/commons)/(\w/\w\w/)(.+)",
         url,
     )
-    if m:
-        return f"{m.group(1)}/{m.group(2)}"
-    return url
+    if not base_match:
+        return url
+    
+    base = base_match.group(1)
+    path = base_match.group(2)
+    filename = base_match.group(3)
+    
+    if filename.startswith("thumb/"):
+        filename = re.sub(r"^thumb/", "", filename)
+        filename = re.sub(r"/\d+px-.+$", "", filename)
+    
+    return f"{base}/thumb/{path}{filename}/{size}px-{filename}"
