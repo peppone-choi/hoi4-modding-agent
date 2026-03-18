@@ -25,7 +25,7 @@ TOOLS = [
     {"name": "diff_preview", "description": "파일 수정 전 변경사항 diff 미리보기. 기존 파일과 새 내용 비교.", "input_schema": {"type": "object", "properties": {"path": {"type": "string", "description": "파일 경로"}, "new_content": {"type": "string", "description": "새 내용"}}, "required": ["path", "new_content"]}},
     {"name": "analyze_mod", "description": "모드 건강 진단. 누락 초상화, 중복 ID, 로컬 누락, 고아 GFX 등 검사.", "input_schema": {"type": "object", "properties": {"check_type": {"type": "string", "enum": ["all", "portraits", "loc", "duplicates", "orphans"], "description": "검사 타입 (기본: all)"}}, "required": []}},
     {"name": "search_portraits", "description": "웹에서 인물 사진 검색/다운로드.", "input_schema": {"type": "object", "properties": {"person_name": {"type": "string"}, "title": {"type": "string"}, "country_tag": {"type": "string"}, "max_results": {"type": "integer"}}, "required": ["person_name"]}},
-    {"name": "generate_portrait", "description": "인물 사진을 HOI4 포트레잇으로 변환. 기본 스타일: 실사 기반 컬러 그레이딩 + 보라 배경 + 스캔라인. style_prompt를 생략하면 기본 TFR 스타일이 자동 적용된다.", "input_schema": {"type": "object", "properties": {"input_image_path": {"type": "string", "description": "원본 사진 경로 (search_portraits 결과)"}, "output_path": {"type": "string", "description": "저장할 경로 (모드 루트 기준, 예: gfx/leaders/KOR/KOR_lee_baek_yoon.png)"}, "style_prompt": {"type": "string", "description": "커스텀 스타일 프롬프트 (선택, 생략 시 기본 TFR 스타일)"}}, "required": ["input_image_path", "output_path"]}},
+    {"name": "generate_portrait", "description": "인물 사진을 HOI4 포트레잇으로 변환. 기본 스타일: 실사 기반 컬러 그레이딩 + 보라 배경 + 스캔라인. ⚠️ 필수: search_portraits → show_image로 사진 보여주기 → 유저 확인 받기 → generate_portrait 실행 순서 엄수. 유저 확인 없이 바로 실행 금지.", "input_schema": {"type": "object", "properties": {"input_image_path": {"type": "string", "description": "원본 사진 경로 (search_portraits 결과)"}, "output_path": {"type": "string", "description": "저장할 경로 (모드 루트 기준, 예: gfx/leaders/KOR/KOR_lee_baek_yoon.png)"}, "style_prompt": {"type": "string", "description": "커스텀 스타일 프롬프트 (선택, 생략 시 기본 TFR 스타일)"}}, "required": ["input_image_path", "output_path"]}},
     {"name": "show_image", "description": "이미지를 채팅에 표시.", "input_schema": {"type": "object", "properties": {"path": {"type": "string"}}, "required": ["path"]}},
 ]
 
@@ -94,6 +94,11 @@ Context7 사용법:
 4. **수정 전 확인**: 파일 수정 전 반드시 read_file 로 현재 내용 확인. diff_preview 로 변경 미리보기.
 5. **검증 후 저장**: PDX Script 작성 시 get_schema 로 키 확인 → validate_pdx 로 검증 → safe_write 로 저장.
 6. **기존 보존**: 기존 내용을 덮어쓰지 마라. 추가/수정만 해라.
+7. **포트레잇 사진 확인 필수 (MANDATORY)**: 
+   - search_portraits로 사진 검색
+   - show_image로 검색된 사진들을 유저에게 보여줌
+   - 유저가 선택한 사진 번호를 확인받은 후에만 generate_portrait 실행
+   - 유저 확인 없이 바로 generate_portrait 호출 절대 금지
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ⛔ 행동 무결성 — 위반 시 유저 신뢰 완전 상실
