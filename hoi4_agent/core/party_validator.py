@@ -123,9 +123,13 @@ class PartyValidator:
     """정당 로컬라이제이션 교차 검증기."""
 
     def __init__(self, mod_root: Path) -> None:
+        from hoi4_agent.core.scanner import detect_mod_prefix
+        prefix = detect_mod_prefix(mod_root)
+        
         self.mod_root = mod_root
+        self.prefix = prefix
         self._loc_dir = mod_root / "localisation" / "english"
-        self._parties_file = self._loc_dir / "TFR_parties_l_english.yml"
+        self._parties_file = self._loc_dir / f"{prefix}_parties_l_english.yml"
         self._country_tags_dir = mod_root / "common" / "country_tags"
         self._history_dir = mod_root / "history" / "countries"
         self._ideology_groups = list(MAIN_IDEOLOGY_GROUPS)
@@ -296,14 +300,14 @@ class PartyValidator:
                     conflict = LocConflict(
                         key=key,
                         sources={
-                            "TFR_parties_l_english.yml": parties_loc[key],
+                            f"{self.prefix}_parties_l_english.yml": parties_loc[key],
                             filename: value,
                         },
                     )
                     report.conflicts.append(conflict)
                     result.add_warning(
                         "PARTY_LOC_CONFLICT",
-                        f"'{key}' defined differently in TFR_parties and {filename}",
+                        f"'{key}' defined differently in {self.prefix}_parties and {filename}",
                     )
 
         filenames = list(country_locs.keys())

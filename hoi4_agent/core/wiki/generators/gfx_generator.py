@@ -38,16 +38,17 @@ class WikiGFXGenerator:
         parts = char_id.split("_")
         country_tag = parts[0] if parts else "UNK"
 
+        from hoi4_agent.core.scanner import detect_mod_prefix
+        prefix = detect_mod_prefix(mod_root)
+        
         sprite_name = f"GFX_{char_id}"
         texture_path = f"gfx/leaders/{country_tag}/{char_id}.png"
 
-        # GFX 파일 결정
-        gfx_file = mod_root / "interface" / "TFR_portraits.gfx"
+        gfx_file = mod_root / "interface" / f"{prefix}_portraits.gfx"
         if not gfx_file.exists():
             gfx_file = mod_root / "interface" / "_leader_portraits.gfx"
         if not gfx_file.exists():
-            # 새로 생성
-            gfx_file = mod_root / "interface" / "TFR_portraits.gfx"
+            gfx_file = mod_root / "interface" / f"{prefix}_portraits.gfx"
             gfx_file.parent.mkdir(parents=True, exist_ok=True)
             gfx_file.write_text("spriteTypes = {\n}\n", encoding="utf-8")
 

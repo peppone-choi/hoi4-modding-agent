@@ -58,10 +58,13 @@ class LocalisationGenerator:
         mod_root: Path = MOD_ROOT,
         lang: str = "english",
     ) -> None:
+        from hoi4_agent.core.scanner import detect_mod_prefix
+        prefix = detect_mod_prefix(mod_root)
+        
         self.mod_root = mod_root
         self.lang = lang
         self._loc_dir = mod_root / "localisation" / lang
-        self._char_file = self._loc_dir / f"TFR_characters_l_{lang}.yml"
+        self._char_file = self._loc_dir / f"{prefix}_characters_l_{lang}.yml"
 
     # ------------------------------------------------------------------
     # 읽기

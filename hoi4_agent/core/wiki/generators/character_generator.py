@@ -45,14 +45,17 @@ class WikiCharacterGenerator:
     # ------------------------------------------------------------------
 
     def add_character_to_mod(self, person: ExtractedPersonData, mod_root: Path | None = None) -> Path:
-        """적절한 ``TFR_characters_XXX.txt`` 파일에 캐릭터를 추가한다."""
+        """적절한 캐릭터 파일에 캐릭터를 추가한다."""
         root = mod_root or self.mod_root
         if root is None:
             raise ValueError("mod_root가 필요합니다")
 
+        from hoi4_agent.core.scanner import detect_mod_prefix
+        prefix = detect_mod_prefix(root)
+        
         char_data = self.generate_from_extracted(person)
         chars_dir = root / "common" / "characters"
-        target_file = chars_dir / f"TFR_characters_{person.country_tag}.txt"
+        target_file = chars_dir / f"{prefix}_characters_{person.country_tag}.txt"
 
         if target_file.exists():
             self._base.add_character_to_file(char_data, target_file)
@@ -70,10 +73,13 @@ class WikiCharacterGenerator:
         if root is None:
             raise ValueError("mod_root가 필요합니다")
 
+        from hoi4_agent.core.scanner import detect_mod_prefix
+        prefix = detect_mod_prefix(root)
+        
         char_data = self.generate_from_extracted(person)
         chars_dir = root / "common" / "characters"
 
-        for fpath in chars_dir.glob("TFR_characters_*.txt"):
+        for fpath in chars_dir.glob(f"{prefix}_characters_*.txt"):
             if self._base.update_character_in_file(char_data, fpath):
                 logger.info(f"캐릭터 업데이트: {person.char_id} in {fpath.name}")
                 return True
@@ -85,8 +91,11 @@ class WikiCharacterGenerator:
         if root is None:
             raise ValueError("mod_root가 필요합니다")
 
+        from hoi4_agent.core.scanner import detect_mod_prefix
+        prefix = detect_mod_prefix(root)
+        
         chars_dir = root / "common" / "characters"
-        for fpath in chars_dir.glob("TFR_characters_*.txt"):
+        for fpath in chars_dir.glob(f"{prefix}_characters_*.txt"):
             if self._base.remove_character_from_file(char_id, fpath):
                 logger.info(f"캐릭터 제거: {char_id} from {fpath.name}")
                 return True

@@ -18,6 +18,22 @@ from typing import Any
 from loguru import logger
 
 
+def detect_mod_prefix(mod_root: Path) -> str:
+    """모드 파일 접두사를 감지한다."""
+    all_prefixes = Counter()
+    
+    for file_path in mod_root.rglob("*"):
+        if file_path.is_file() and file_path.suffix in {".txt", ".yml", ".gfx"}:
+            parts = file_path.stem.split("_")
+            if len(parts) >= 2 and parts[0].isupper() and len(parts[0]) <= 6:
+                all_prefixes[parts[0]] += 1
+    
+    if all_prefixes:
+        return all_prefixes.most_common(1)[0][0]
+    
+    return "MOD"
+
+
 # =====================================================================
 # ModContext — 스캔 결과 전체를 담는 컨테이너
 # =====================================================================
@@ -553,42 +569,16 @@ class ModScanner:
     # ------------------------------------------------------------------
 
     def _detect_naming(self, ctx: ModContext) -> None:
-        # 캐릭터 파일 접두사 탐지
-        char_dir = ctx.root / "common" / "characters"
-        if char_dir.is_dir():
-            prefixes = Counter()
-            for f in char_dir.glob("*.txt"):
-                parts = f.stem.split("_")
-                if len(parts) >= 2:
-                    prefixes[parts[0]] += 1
-            if prefixes:
-                top_prefix = prefixes.most_common(1)[0][0]
-                ctx.naming_prefix = top_prefix
-                ctx.naming_conventions["characters"] = f"{top_prefix}_characters_TAG.txt"
-
-        # 이벤트 파일 패턴
-        ev_dir = ctx.root / "events"
-        if ev_dir.is_dir():
-            ev_prefixes = Counter()
-            for f in ev_dir.glob("*.txt"):
-                parts = f.stem.split("_")
-                if len(parts) >= 2:
-                    ev_prefixes[parts[0]] += 1
-            if ev_prefixes:
-                top = ev_prefixes.most_common(1)[0][0]
-                ctx.naming_conventions["events"] = f"{top}_events_TAG.txt"
-
-        # 포커스 파일 패턴
-        foc_dir = ctx.root / "common" / "national_focus"
-        if foc_dir.is_dir():
-            foc_prefixes = Counter()
-            for f in foc_dir.glob("*.txt"):
-                parts = f.stem.split("_")
-                if len(parts) >= 2:
-                    foc_prefixes[parts[0]] += 1
-            if foc_prefixes:
-                top = foc_prefixes.most_common(1)[0][0]
-                ctx.naming_conventions["focuses"] = f"{top}_focus_TAG.txt"
+        top_prefix = detect_mod_prefix(ctx.root)
+        ctx.naming_prefix = top_prefix
+        logger.info(f"모드 접두사 감지: {top_prefix}")
+        
+        ctx.naming_conventions["characters"] = f"{top_prefix}_characters_TAG.txt"
+        ctx.naming_conventions["events"] = f"{top_prefix}_events_TAG.txt"
+        ctx.naming_conventions["focuses"] = f"{top_prefix}_focus_TAG.txt"
+        ctx.naming_conventions["ideologies"] = f"{top_prefix}_ideologies.txt"
+        ctx.naming_conventions["parties"] = f"{top_prefix}_parties_l_english.yml"
+        ctx.naming_conventions["portraits_gfx"] = f"{top_prefix}_portraits.gfx"
 
     def _scan_directories(self, ctx: ModContext) -> None:
         from hoi4_agent.core.hoi4_schema import get_directory_info
@@ -662,7 +652,7 @@ class ModScanner:
 
     @staticmethod
     def _guess_tag_from_filename(stem: str) -> str:
-        """파일명에서 국가 태그를 추측한다. 예: TFR_characters_USA → USA"""
+        """파일명에서 국가 태그를 추측한다. 예: MOD_characters_USA → USA"""
         parts = stem.split("_")
         for part in reversed(parts):
             if re.match(r'^[A-Z]{3}$', part):
