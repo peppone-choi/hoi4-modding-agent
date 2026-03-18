@@ -136,6 +136,42 @@ class ModContext:
     loc_key_count: int = 0
     gfx_sprites: int = 0
 
+    # Phase 1: 최우선 (모드/맵/인터페이스/히스토리)
+    game_rules: list[str] = field(default_factory=list)
+    difficulty_settings: list[str] = field(default_factory=list)
+    map_modes: list[str] = field(default_factory=list)
+    bookmarks: list[str] = field(default_factory=list)
+    scripted_effects: list[str] = field(default_factory=list)
+    scripted_triggers: list[str] = field(default_factory=list)
+    history_units: dict[str, int] = field(default_factory=dict)  # country_tag -> unit_count
+    history_generals: list[str] = field(default_factory=list)
+    map_strategic_regions: int = 0
+    map_buildings: dict = field(default_factory=dict)  # {"file_size": ..., "line_count": ...}
+    map_railways: dict = field(default_factory=dict)
+    map_supply_areas: int = 0
+    interface_gui: list[str] = field(default_factory=list)
+    portraits_data: list[str] = field(default_factory=list)
+    
+    # Phase 2: 중요 (common/ 나머지)
+    scripted_localisation: list[str] = field(default_factory=list)
+    scripted_guis: list[str] = field(default_factory=list)
+    units: list[str] = field(default_factory=list)
+    ai_strategy_plans: list[str] = field(default_factory=list)
+    ai_strategy: list[str] = field(default_factory=list)
+    on_actions: list[str] = field(default_factory=list)
+    dynamic_modifiers: list[str] = field(default_factory=list)
+    factions: list[str] = field(default_factory=list)
+    ai_equipment: list[str] = field(default_factory=list)
+    doctrines: list[str] = field(default_factory=list)
+    military_industrial_organization: list[str] = field(default_factory=list)
+    ai_templates: list[str] = field(default_factory=list)
+    autonomous_states: list[str] = field(default_factory=list)
+    scripted_diplomatic_actions: list[str] = field(default_factory=list)
+    
+    # Phase 3: 표준 (통합 스캔)
+    generic_common_scans: dict[str, dict] = field(default_factory=dict)  # folder_name -> {count, sample_keys}
+    map_other_files: dict[str, dict] = field(default_factory=dict)  # filename -> metadata
+
     # 파일 조직
     file_counts: dict[str, int] = field(default_factory=dict)  # category → count
     naming_prefix: str = ""           # 파일 접두사 (예: TFR_, KR_ 등)
@@ -184,6 +220,43 @@ class ModContext:
         lines.append(f"프로빈스: {len(self.provinces)}개")
         lines.append(f"스테이트: {len(self.states)}개")
         lines.append(f"테크놀로지: {len(self.technologies)}개")
+        
+        if self.game_rules:
+            lines.append(f"게임 룰: {len(self.game_rules)}개")
+        if self.difficulty_settings:
+            lines.append(f"난이도 설정: {len(self.difficulty_settings)}개")
+        if self.map_modes:
+            lines.append(f"맵 모드: {len(self.map_modes)}개")
+        if self.bookmarks:
+            lines.append(f"북마크: {len(self.bookmarks)}개")
+        if self.scripted_effects:
+            lines.append(f"스크립트 효과: {len(self.scripted_effects)}개")
+        if self.scripted_triggers:
+            lines.append(f"스크립트 트리거: {len(self.scripted_triggers)}개")
+        if self.history_units:
+            lines.append(f"히스토리 부대: {sum(self.history_units.values())}개 (국가 {len(self.history_units)}개)")
+        if self.map_strategic_regions > 0:
+            lines.append(f"전략 지역: {self.map_strategic_regions}개")
+        if self.interface_gui:
+            lines.append(f"GUI 윈도우: {len(self.interface_gui)}개")
+        if self.portraits_data:
+            lines.append(f"포트레잇 타입: {len(self.portraits_data)}개")
+        
+        if self.scripted_localisation:
+            lines.append(f"스크립트 지역화: {len(self.scripted_localisation)}개")
+        if self.scripted_guis:
+            lines.append(f"스크립트 GUI: {len(self.scripted_guis)}개")
+        if self.units:
+            lines.append(f"유닛 타입: {len(self.units)}개")
+        if self.ai_strategy_plans:
+            lines.append(f"AI 전략 계획: {len(self.ai_strategy_plans)}개")
+        if self.factions:
+            lines.append(f"팩션: {len(self.factions)}개")
+        
+        if self.generic_common_scans:
+            lines.append(f"\n기타 common/ 폴더: {len(self.generic_common_scans)}개")
+            for folder, data in sorted(self.generic_common_scans.items())[:10]:
+                lines.append(f"  {folder}: {data['file_count']}개 파일")
 
         if self.ideology_groups:
             lines.append("")
@@ -261,6 +334,43 @@ class ModScanner:
         self._scan_technologies(ctx)
         self._scan_localisation(ctx)
         self._scan_gfx(ctx)
+        
+        # Phase 1: 최우선
+        self._scan_game_rules(ctx)
+        self._scan_difficulty_settings(ctx)
+        self._scan_map_modes(ctx)
+        self._scan_bookmarks(ctx)
+        self._scan_scripted_effects(ctx)
+        self._scan_scripted_triggers(ctx)
+        self._scan_history_units(ctx)
+        self._scan_history_generals(ctx)
+        self._scan_map_strategic_regions(ctx)
+        self._scan_map_buildings(ctx)
+        self._scan_map_railways(ctx)
+        self._scan_map_supply_areas(ctx)
+        self._scan_interface_gui(ctx)
+        self._scan_portraits(ctx)
+        
+        # Phase 2: 중요
+        self._scan_scripted_localisation(ctx)
+        self._scan_scripted_guis(ctx)
+        self._scan_units(ctx)
+        self._scan_ai_strategy_plans(ctx)
+        self._scan_ai_strategy(ctx)
+        self._scan_on_actions(ctx)
+        self._scan_dynamic_modifiers(ctx)
+        self._scan_factions(ctx)
+        self._scan_ai_equipment(ctx)
+        self._scan_doctrines(ctx)
+        self._scan_military_industrial_organization(ctx)
+        self._scan_ai_templates(ctx)
+        self._scan_autonomous_states(ctx)
+        self._scan_scripted_diplomatic_actions(ctx)
+        
+        # Phase 3: 표준
+        self._scan_generic_common_folders(ctx)
+        self._scan_map_other_files(ctx)
+        
         self._scan_directories(ctx)
         self._count_files(ctx)
         self._detect_naming(ctx)
@@ -834,12 +944,350 @@ class ModScanner:
 
     @staticmethod
     def _guess_tag_from_filename(stem: str) -> str:
-        """파일명에서 국가 태그를 추측한다. 예: MOD_characters_USA → USA"""
         parts = stem.split("_")
         for part in reversed(parts):
             if re.match(r'^[A-Z]{3}$', part):
                 return part
         return ""
+
+    def _scan_game_rules(self, ctx: ModContext) -> None:
+        rule_dir = ctx.root / "common" / "game_rules"
+        if not rule_dir.is_dir():
+            return
+        for fpath in sorted(rule_dir.rglob("*.txt")):
+            text = self._read(fpath)
+            for m in re.finditer(r'^(\w+)\s*=\s*\{', text, re.MULTILINE):
+                token = m.group(1)
+                if token not in ("ideologies",):
+                    ctx.game_rules.append(token)
+
+    def _scan_difficulty_settings(self, ctx: ModContext) -> None:
+        diff_dir = ctx.root / "common" / "difficulty_settings"
+        if not diff_dir.is_dir():
+            return
+        for fpath in sorted(diff_dir.rglob("*.txt")):
+            text = self._read(fpath)
+            for m in re.finditer(r'difficulty_setting\s*=\s*\{', text):
+                block = self._extract_block(text, m.start())
+                key_m = re.search(r'key\s*=\s*"([^"]+)"', block)
+                if key_m:
+                    ctx.difficulty_settings.append(key_m.group(1))
+
+    def _scan_map_modes(self, ctx: ModContext) -> None:
+        mode_dir = ctx.root / "common" / "map_modes"
+        if not mode_dir.is_dir():
+            return
+        for fpath in sorted(mode_dir.rglob("*.txt")):
+            text = self._read(fpath)
+            for m in re.finditer(r'^\t(\w+)\s*=\s*\{', text, re.MULTILINE):
+                ctx.map_modes.append(m.group(1))
+
+    def _scan_bookmarks(self, ctx: ModContext) -> None:
+        bm_dir = ctx.root / "common" / "bookmarks"
+        if not bm_dir.is_dir():
+            return
+        for fpath in sorted(bm_dir.rglob("*.txt")):
+            text = self._read(fpath)
+            for m in re.finditer(r'bookmark\s*=\s*\{', text):
+                block = self._extract_block(text, m.start())
+                name_m = re.search(r'name\s*=\s*"([^"]+)"', block)
+                if name_m:
+                    ctx.bookmarks.append(name_m.group(1))
+
+    def _scan_scripted_effects(self, ctx: ModContext) -> None:
+        eff_dir = ctx.root / "common" / "scripted_effects"
+        if not eff_dir.is_dir():
+            return
+        for fpath in sorted(eff_dir.rglob("*.txt")):
+            text = self._read(fpath)
+            for m in re.finditer(r'^(\w+)\s*=\s*\{', text, re.MULTILINE):
+                ctx.scripted_effects.append(m.group(1))
+
+    def _scan_scripted_triggers(self, ctx: ModContext) -> None:
+        trig_dir = ctx.root / "common" / "scripted_triggers"
+        if not trig_dir.is_dir():
+            return
+        for fpath in sorted(trig_dir.rglob("*.txt")):
+            text = self._read(fpath)
+            for m in re.finditer(r'^(\w+)\s*=\s*\{', text, re.MULTILINE):
+                ctx.scripted_triggers.append(m.group(1))
+
+    def _scan_history_units(self, ctx: ModContext) -> None:
+        units_dir = ctx.root / "history" / "units"
+        if not units_dir.is_dir():
+            return
+        for fpath in sorted(units_dir.rglob("*.txt")):
+            tag = self._guess_tag_from_filename(fpath.stem)
+            if not tag:
+                continue
+            text = self._read(fpath)
+            unit_count = len(re.findall(r'division\s*=\s*\{', text))
+            if tag not in ctx.history_units:
+                ctx.history_units[tag] = 0
+            ctx.history_units[tag] += unit_count
+
+    def _scan_history_generals(self, ctx: ModContext) -> None:
+        gen_dir = ctx.root / "history" / "general"
+        if not gen_dir.is_dir():
+            return
+        for fpath in sorted(gen_dir.rglob("*.txt")):
+            text = self._read(fpath)
+            for m in re.finditer(r'^\t(\w+)\s*=\s*\{', text, re.MULTILINE):
+                ctx.history_generals.append(m.group(1))
+
+    def _scan_map_strategic_regions(self, ctx: ModContext) -> None:
+        sr_dir = ctx.root / "map" / "strategicregions"
+        if not sr_dir.is_dir():
+            return
+        ctx.map_strategic_regions = len(list(sr_dir.glob("*.txt")))
+
+    def _scan_map_buildings(self, ctx: ModContext) -> None:
+        bldg = ctx.root / "map" / "buildings.txt"
+        if not bldg.exists():
+            return
+        ctx.map_buildings["file_size"] = bldg.stat().st_size
+        text = self._read(bldg, limit=100_000)
+        ctx.map_buildings["line_count"] = len(text.splitlines())
+
+    def _scan_map_railways(self, ctx: ModContext) -> None:
+        rail = ctx.root / "map" / "railways.txt"
+        if not rail.exists():
+            return
+        ctx.map_railways["file_size"] = rail.stat().st_size
+        text = self._read(rail)
+        ctx.map_railways["line_count"] = len(text.splitlines())
+
+    def _scan_map_supply_areas(self, ctx: ModContext) -> None:
+        sa_dir = ctx.root / "map" / "supplyareas"
+        if not sa_dir.is_dir():
+            return
+        ctx.map_supply_areas = len(list(sa_dir.glob("*.txt")))
+
+    def _scan_interface_gui(self, ctx: ModContext) -> None:
+        iface_dir = ctx.root / "interface"
+        if not iface_dir.is_dir():
+            return
+        for fpath in sorted(iface_dir.rglob("*.gui")):
+            text = self._read(fpath)
+            for m in re.finditer(r'containerWindowType\s*=\s*\{', text):
+                block = self._extract_block(text, m.start())
+                name_m = re.search(r'name\s*=\s*"([^"]+)"', block)
+                if name_m:
+                    ctx.interface_gui.append(name_m.group(1))
+
+    def _scan_portraits(self, ctx: ModContext) -> None:
+        port_dir = ctx.root / "portraits"
+        if not port_dir.is_dir():
+            return
+        for fpath in sorted(port_dir.rglob("*.txt")):
+            text = self._read(fpath)
+            for m in re.finditer(r'^\t(\w+)\s*=\s*\{', text, re.MULTILINE):
+                token = m.group(1)
+                if token not in ("portraits", "male", "female"):
+                    ctx.portraits_data.append(token)
+
+    def _scan_scripted_localisation(self, ctx: ModContext) -> None:
+        loc_dir = ctx.root / "common" / "scripted_localisation"
+        if not loc_dir.is_dir():
+            return
+        for fpath in sorted(loc_dir.rglob("*.txt")):
+            text = self._read(fpath)
+            for m in re.finditer(r'defined_text\s*=\s*\{', text):
+                block = self._extract_block(text, m.start())
+                name_m = re.search(r'name\s*=\s*(\w+)', block)
+                if name_m:
+                    ctx.scripted_localisation.append(name_m.group(1))
+
+    def _scan_scripted_guis(self, ctx: ModContext) -> None:
+        gui_dir = ctx.root / "common" / "scripted_guis"
+        if not gui_dir.is_dir():
+            return
+        for fpath in sorted(gui_dir.rglob("*.txt")):
+            text = self._read(fpath)
+            for m in re.finditer(r'scripted_gui\s*=\s*\{', text):
+                block = self._extract_block(text, m.start())
+                name_m = re.search(r'name\s*=\s*(\w+)', block)
+                if name_m:
+                    ctx.scripted_guis.append(name_m.group(1))
+
+    def _scan_units(self, ctx: ModContext) -> None:
+        units_dir = ctx.root / "common" / "units"
+        if not units_dir.is_dir():
+            return
+        for fpath in sorted(units_dir.rglob("*.txt")):
+            text = self._read(fpath)
+            for m in re.finditer(r'^\t(sub_unit|equipment|unit)\s*=\s*\{', text, re.MULTILINE):
+                block = self._extract_block(text, m.start())
+                type_m = re.search(r'type\s*=\s*(\w+)', block)
+                if type_m:
+                    ctx.units.append(type_m.group(1))
+
+    def _scan_ai_strategy_plans(self, ctx: ModContext) -> None:
+        ai_dir = ctx.root / "common" / "ai_strategy_plans"
+        if not ai_dir.is_dir():
+            return
+        for fpath in sorted(ai_dir.rglob("*.txt")):
+            text = self._read(fpath)
+            for m in re.finditer(r'ai_strategy_plan\s*=\s*\{', text):
+                block = self._extract_block(text, m.start())
+                name_m = re.search(r'name\s*=\s*(\w+)', block)
+                if name_m:
+                    ctx.ai_strategy_plans.append(name_m.group(1))
+
+    def _scan_ai_strategy(self, ctx: ModContext) -> None:
+        ai_dir = ctx.root / "common" / "ai_strategy"
+        if not ai_dir.is_dir():
+            return
+        for fpath in sorted(ai_dir.rglob("*.txt")):
+            text = self._read(fpath)
+            for m in re.finditer(r'ai_strategy\s*=\s*\{', text):
+                block = self._extract_block(text, m.start())
+                id_m = re.search(r'id\s*=\s*"?(\w+)"?', block)
+                if id_m:
+                    ctx.ai_strategy.append(id_m.group(1))
+
+    def _scan_on_actions(self, ctx: ModContext) -> None:
+        on_dir = ctx.root / "common" / "on_actions"
+        if not on_dir.is_dir():
+            return
+        for fpath in sorted(on_dir.rglob("*.txt")):
+            text = self._read(fpath)
+            for m in re.finditer(r'^(\w+)\s*=\s*\{', text, re.MULTILINE):
+                ctx.on_actions.append(m.group(1))
+
+    def _scan_dynamic_modifiers(self, ctx: ModContext) -> None:
+        dyn_dir = ctx.root / "common" / "dynamic_modifiers"
+        if not dyn_dir.is_dir():
+            return
+        for fpath in sorted(dyn_dir.rglob("*.txt")):
+            text = self._read(fpath)
+            for m in re.finditer(r'^(\w+)\s*=\s*\{', text, re.MULTILINE):
+                ctx.dynamic_modifiers.append(m.group(1))
+
+    def _scan_factions(self, ctx: ModContext) -> None:
+        fac_dir = ctx.root / "common" / "factions"
+        if not fac_dir.is_dir():
+            return
+        for fpath in sorted(fac_dir.rglob("*.txt")):
+            text = self._read(fpath)
+            for m in re.finditer(r'faction\s*=\s*\{', text):
+                block = self._extract_block(text, m.start())
+                name_m = re.search(r'name\s*=\s*"([^"]+)"', block)
+                if name_m:
+                    ctx.factions.append(name_m.group(1))
+
+    def _scan_ai_equipment(self, ctx: ModContext) -> None:
+        eq_dir = ctx.root / "common" / "ai_equipment"
+        if not eq_dir.is_dir():
+            return
+        for fpath in sorted(eq_dir.rglob("*.txt")):
+            text = self._read(fpath)
+            for m in re.finditer(r'^\t(\w+)\s*=\s*\{', text, re.MULTILINE):
+                ctx.ai_equipment.append(m.group(1))
+
+    def _scan_doctrines(self, ctx: ModContext) -> None:
+        doc_dir = ctx.root / "common" / "technologies"
+        if not doc_dir.is_dir():
+            return
+        for fpath in sorted(doc_dir.rglob("*doctrines*.txt")):
+            text = self._read(fpath)
+            for m in re.finditer(r'^\t(\w+)\s*=\s*\{', text, re.MULTILINE):
+                ctx.doctrines.append(m.group(1))
+
+    def _scan_military_industrial_organization(self, ctx: ModContext) -> None:
+        mio_dir = ctx.root / "common" / "military_industrial_organization"
+        if not mio_dir.is_dir():
+            return
+        for fpath in sorted(mio_dir.rglob("*.txt")):
+            text = self._read(fpath)
+            for m in re.finditer(r'^\t(\w+)\s*=\s*\{', text, re.MULTILINE):
+                ctx.military_industrial_organization.append(m.group(1))
+
+    def _scan_ai_templates(self, ctx: ModContext) -> None:
+        tmpl_dir = ctx.root / "common" / "ai_templates"
+        if not tmpl_dir.is_dir():
+            return
+        for fpath in sorted(tmpl_dir.rglob("*.txt")):
+            text = self._read(fpath)
+            for m in re.finditer(r'^\t(\w+)\s*=\s*\{', text, re.MULTILINE):
+                ctx.ai_templates.append(m.group(1))
+
+    def _scan_autonomous_states(self, ctx: ModContext) -> None:
+        auto_dir = ctx.root / "common" / "autonomous_states"
+        if not auto_dir.is_dir():
+            return
+        for fpath in sorted(auto_dir.rglob("*.txt")):
+            text = self._read(fpath)
+            for m in re.finditer(r'autonomy_state\s*=\s*\{', text):
+                block = self._extract_block(text, m.start())
+                id_m = re.search(r'id\s*=\s*(\w+)', block)
+                if id_m:
+                    ctx.autonomous_states.append(id_m.group(1))
+
+    def _scan_scripted_diplomatic_actions(self, ctx: ModContext) -> None:
+        dip_dir = ctx.root / "common" / "scripted_diplomatic_actions"
+        if not dip_dir.is_dir():
+            return
+        for fpath in sorted(dip_dir.rglob("*.txt")):
+            text = self._read(fpath)
+            for m in re.finditer(r'^\t(\w+)\s*=\s*\{', text, re.MULTILINE):
+                ctx.scripted_diplomatic_actions.append(m.group(1))
+
+    def _scan_generic_common_folders(self, ctx: ModContext) -> None:
+        common_dir = ctx.root / "common"
+        if not common_dir.is_dir():
+            return
+        
+        scanned = {
+            "country_tags", "characters", "ideologies", "national_focus", "ideas", "decisions",
+            "technologies", "game_rules", "difficulty_settings", "map_modes", "bookmarks",
+            "scripted_effects", "scripted_triggers", "scripted_localisation", "scripted_guis",
+            "units", "ai_strategy_plans", "ai_strategy", "on_actions", "dynamic_modifiers",
+            "factions", "ai_equipment", "doctrines", "military_industrial_organization",
+            "ai_templates", "autonomous_states", "scripted_diplomatic_actions", "countries"
+        }
+        
+        for subdir in sorted(common_dir.iterdir()):
+            if not subdir.is_dir():
+                continue
+            if subdir.name in scanned:
+                continue
+            
+            file_count = len(list(subdir.rglob("*.txt")))
+            if file_count == 0:
+                continue
+            
+            sample_keys = []
+            for fpath in list(subdir.rglob("*.txt"))[:3]:
+                text = self._read(fpath, limit=50_000)
+                for m in re.finditer(r'^\t?(\w+)\s*=\s*\{', text, re.MULTILINE):
+                    sample_keys.append(m.group(1))
+                    if len(sample_keys) >= 10:
+                        break
+            
+            ctx.generic_common_scans[subdir.name] = {
+                "file_count": file_count,
+                "sample_keys": sample_keys[:10]
+            }
+
+    def _scan_map_other_files(self, ctx: ModContext) -> None:
+        map_dir = ctx.root / "map"
+        if not map_dir.is_dir():
+            return
+        
+        important_files = [
+            "adjacencies.csv", "adjacency_rules.txt", "ambient_object.txt",
+            "cities.txt", "colors.txt", "continent.txt", "default.map",
+            "seasons.txt", "supply_nodes.txt", "unitstacks.txt", "weatherpositions.txt"
+        ]
+        
+        for filename in important_files:
+            fpath = map_dir / filename
+            if fpath.exists():
+                ctx.map_other_files[filename] = {
+                    "exists": True,
+                    "size": fpath.stat().st_size
+                }
 
 
 # =====================================================================
@@ -873,27 +1321,3 @@ def find_mod_root(start: Path | None = None) -> Path | None:
             return current
 
     return None
-
-
-    def _scan_directories(self, ctx: ModContext) -> None:
-        from hoi4_agent.core.hoi4_schema import get_directory_info
-        
-        for dirpath, dirnames, filenames in os.walk(ctx.root):
-            rel_path = Path(dirpath).relative_to(ctx.root)
-            
-            if rel_path == Path("."):
-                continue
-            
-            dir_key = str(rel_path).replace("\\", "/") + "/"
-            
-            dir_info = get_directory_info(dir_key)
-            if dir_info:
-                ctx.directory_map[dir_key] = {
-                    "path": dir_key,
-                    "purpose": dir_info.get("purpose", ""),
-                    "description": dir_info.get("description", ""),
-                    "content_type": dir_info.get("content_type", ""),
-                    "file_pattern": dir_info.get("file_pattern", ""),
-                    "file_count": len(filenames),
-                    "subdir_count": len(dirnames),
-                }
