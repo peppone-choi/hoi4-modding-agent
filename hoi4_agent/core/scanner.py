@@ -77,6 +77,39 @@ class FocusTreeInfo:
 
 
 @dataclass
+class ProvinceInfo:
+    province_id: int
+    rgb: tuple[int, int, int]
+    terrain: str  # desert, forest, plains, mountain, hills, marsh, ocean, etc.
+    is_coastal: bool
+    province_type: str  # land, sea
+
+
+@dataclass
+class StateInfo:
+    state_id: int
+    name: str
+    file: str
+    owner: str = ""
+    manpower: int = 0
+    provinces: list[int] = field(default_factory=list)
+    victory_points: dict[int, int] = field(default_factory=dict)  # province_id -> vp_value
+    infrastructure: int = 0
+    state_category: str = ""
+
+
+@dataclass
+class TechnologyInfo:
+    tech_id: str
+    file: str
+    research_cost: float = 0.0
+    start_year: int = 0
+    prerequisites: list[str] = field(default_factory=list)  # leads_to_tech
+    folder: str = ""
+    categories: list[str] = field(default_factory=list)
+
+
+@dataclass
 class ModContext:
     """모드 전체 컨텍스트. 스캔 결과를 담는다."""
     root: Path = field(default_factory=Path)
@@ -95,7 +128,10 @@ class ModContext:
     focus_trees: list[FocusTreeInfo] = field(default_factory=list)
     ideas: list[str] = field(default_factory=list)
     decisions: list[str] = field(default_factory=list)
-    ideology_groups: dict[str, list[str]] = field(default_factory=dict)  # group → [sub_ideologies]
+    ideology_groups: dict[str, list[str]] = field(default_factory=dict)
+    provinces: dict[int, ProvinceInfo] = field(default_factory=dict)
+    states: dict[int, StateInfo] = field(default_factory=dict)
+    technologies: list[TechnologyInfo] = field(default_factory=list)
     loc_languages: list[str] = field(default_factory=list)
     loc_key_count: int = 0
     gfx_sprites: int = 0
@@ -145,6 +181,9 @@ class ModContext:
         lines.append(f"포커스 트리: {len(self.focus_trees)}개")
         lines.append(f"아이디어: {len(self.ideas)}개")
         lines.append(f"디시전: {len(self.decisions)}개")
+        lines.append(f"프로빈스: {len(self.provinces)}개")
+        lines.append(f"스테이트: {len(self.states)}개")
+        lines.append(f"테크놀로지: {len(self.technologies)}개")
 
         if self.ideology_groups:
             lines.append("")
@@ -217,6 +256,9 @@ class ModScanner:
         self._scan_focuses(ctx)
         self._scan_ideas(ctx)
         self._scan_decisions(ctx)
+        self._scan_map_provinces(ctx)
+        self._scan_states(ctx)
+        self._scan_technologies(ctx)
         self._scan_localisation(ctx)
         self._scan_gfx(ctx)
         self._scan_directories(ctx)
@@ -225,9 +267,9 @@ class ModScanner:
 
         ctx.scan_time_sec = time.time() - t0
         logger.info(
-            "모드 스캔 완료: {} — {}개 국가, {}개 캐릭터, {}개 이벤트 ({:.1f}s)",
+            "모드 스캔 완료: {} — {}개 국가, {}개 캐릭터, {}개 이벤트, {}개 프로빈스, {}개 스테이트, {}개 테크 ({:.1f}s)",
             ctx.mod_name, len(ctx.countries), len(ctx.characters),
-            len(ctx.events), ctx.scan_time_sec,
+            len(ctx.events), len(ctx.provinces), len(ctx.states), len(ctx.technologies), ctx.scan_time_sec,
         )
         return ctx
 
@@ -488,7 +530,7 @@ class ModScanner:
                     ctx.ideas.append(token)
 
     # ------------------------------------------------------------------
-    # common/decisions/*.txt — 디시전
+    # decisions
     # ------------------------------------------------------------------
 
     def _scan_decisions(self, ctx: ModContext) -> None:
@@ -503,6 +545,135 @@ class ModScanner:
                                  "complete_effect", "remove_effect", "modifier",
                                  "ai_will_do", "cost", "fire_only_once", "cancel_trigger"):
                     ctx.decisions.append(token)
+
+    # ------------------------------------------------------------------
+    # map/definition.csv — province definitions
+    # ------------------------------------------------------------------
+
+    def _scan_map_provinces(self, ctx: ModContext) -> None:
+        def_csv = ctx.root / "map" / "definition.csv"
+        if not def_csv.exists():
+            return
+        
+        try:
+            text = def_csv.read_text(encoding="utf-8-sig", errors="replace")
+            for line in text.splitlines():
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                
+                parts = line.split(";")
+                if len(parts) < 6:
+                    continue
+                
+                try:
+                    prov_id = int(parts[0])
+                    r, g, b = int(parts[1]), int(parts[2]), int(parts[3])
+                    prov_type = parts[4] if len(parts) > 4 else "land"
+                    coastal = parts[5].lower() == "true" if len(parts) > 5 else False
+                    terrain = parts[6] if len(parts) > 6 else "unknown"
+                    
+                    ctx.provinces[prov_id] = ProvinceInfo(
+                        province_id=prov_id,
+                        rgb=(r, g, b),
+                        terrain=terrain,
+                        is_coastal=coastal,
+                        province_type=prov_type,
+                    )
+                except (ValueError, IndexError):
+                    continue
+        except Exception as e:
+            logger.warning(f"map/definition.csv 읽기 실패: {e}")
+
+    # ------------------------------------------------------------------
+    # history/states/*.txt — state definitions
+    # ------------------------------------------------------------------
+
+    def _scan_states(self, ctx: ModContext) -> None:
+        states_dir = ctx.root / "history" / "states"
+        if not states_dir.is_dir():
+            return
+        
+        for fpath in sorted(states_dir.rglob("*.txt")):
+            text = self._read(fpath)
+            rel = str(fpath.relative_to(ctx.root))
+            
+            id_m = re.search(r'\bid\s*=\s*(\d+)', text)
+            if not id_m:
+                continue
+            
+            state_id = int(id_m.group(1))
+            name_m = re.search(r'name\s*=\s*"([^"]+)"', text)
+            owner_m = re.search(r'owner\s*=\s*(\w+)', text)
+            manpower_m = re.search(r'manpower\s*=\s*(\d+)', text)
+            category_m = re.search(r'state_category\s*=\s*(\w+)', text)
+            
+            provinces_m = re.search(r'provinces\s*=\s*\{([^\}]+)\}', text)
+            provinces_list = []
+            if provinces_m:
+                provinces_list = [int(p) for p in provinces_m.group(1).split() if p.isdigit()]
+            
+            vp_dict = {}
+            for vp_m in re.finditer(r'victory_points\s*=\s*\{\s*(\d+)\s+(\d+)\s*\}', text):
+                vp_dict[int(vp_m.group(1))] = int(vp_m.group(2))
+            
+            infra_m = re.search(r'infrastructure\s*=\s*(\d+)', text)
+            
+            ctx.states[state_id] = StateInfo(
+                state_id=state_id,
+                name=name_m.group(1) if name_m else f"STATE_{state_id}",
+                file=rel,
+                owner=owner_m.group(1) if owner_m else "",
+                manpower=int(manpower_m.group(1)) if manpower_m else 0,
+                provinces=provinces_list,
+                victory_points=vp_dict,
+                infrastructure=int(infra_m.group(1)) if infra_m else 0,
+                state_category=category_m.group(1) if category_m else "",
+            )
+
+    # ------------------------------------------------------------------
+    # common/technologies/*.txt — technology trees
+    # ------------------------------------------------------------------
+
+    def _scan_technologies(self, ctx: ModContext) -> None:
+        tech_dir = ctx.root / "common" / "technologies"
+        if not tech_dir.is_dir():
+            return
+        
+        for fpath in sorted(tech_dir.rglob("*.txt")):
+            text = self._read(fpath)
+            rel = str(fpath.relative_to(ctx.root))
+            
+            for m in re.finditer(r'^\t(\w+)\s*=\s*\{', text, re.MULTILINE):
+                tech_id = m.group(1)
+                if tech_id in ("technologies", "folder", "categories", "path", 
+                               "enable_equipments", "enable_subunits"):
+                    continue
+                
+                block = self._extract_block(text, m.start())
+                
+                cost_m = re.search(r'research_cost\s*=\s*([\d.]+)', block)
+                year_m = re.search(r'start_year\s*=\s*(\d+)', block)
+                folder_m = re.search(r'folder\s*=\s*\{[^}]*name\s*=\s*(\w+)', block, re.DOTALL)
+                
+                prereqs = []
+                for path_m in re.finditer(r'leads_to_tech\s*=\s*(\w+)', block):
+                    prereqs.append(path_m.group(1))
+                
+                categories = []
+                cat_block_m = re.search(r'categories\s*=\s*\{([^\}]+)\}', block)
+                if cat_block_m:
+                    categories = [c.strip() for c in cat_block_m.group(1).split() if c.strip()]
+                
+                ctx.technologies.append(TechnologyInfo(
+                    tech_id=tech_id,
+                    file=rel,
+                    research_cost=float(cost_m.group(1)) if cost_m else 0.0,
+                    start_year=int(year_m.group(1)) if year_m else 0,
+                    prerequisites=prereqs,
+                    folder=folder_m.group(1) if folder_m else "",
+                    categories=categories,
+                ))
 
     # ------------------------------------------------------------------
     # localisation/ — 로컬라이제이션

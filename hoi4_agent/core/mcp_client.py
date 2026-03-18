@@ -5,6 +5,7 @@ discover_tools()에서 연결을 열고, execute()에서 재사용, shutdown()�
 """
 from __future__ import annotations
 
+import atexit
 import asyncio
 import json
 import os
@@ -28,10 +29,10 @@ class MCPManager:
         self.configs = {c.name: c for c in (configs or [])}
         self._tools: list[dict] = []
         self._tool_server_map: dict[str, str] = {}
-        # 커넥션 풀: server_name → (ClientSession, AsyncExitStack)
         self._sessions: dict[str, Any] = {}
         self._stacks: dict[str, AsyncExitStack] = {}
         self._pool_ready = False
+        atexit.register(self.shutdown)
 
     @classmethod
     def from_config_file(cls, path: Path) -> MCPManager:
@@ -165,13 +166,12 @@ class MCPManager:
 
     async def _reconnect_server(self, server_name: str) -> None:
         """기존 세션 정리 후 재연결."""
-        # 기존 스택 정리
         old_stack = self._stacks.pop(server_name, None)
         self._sessions.pop(server_name, None)
         if old_stack:
             try:
                 await old_stack.aclose()
-            except Exception:
+            except (RuntimeError, Exception):
                 pass
 
         config = self.configs.get(server_name)
@@ -180,10 +180,10 @@ class MCPManager:
 
     async def _shutdown_all(self) -> None:
         """모든 MCP 서버 세션 정리."""
-        for name, stack in list(self._stacks.items()):
+        for name, stack in reversed(list(self._stacks.items())):
             try:
                 await stack.aclose()
-            except Exception:
+            except (RuntimeError, Exception):
                 pass
         self._sessions.clear()
         self._stacks.clear()
@@ -195,12 +195,7 @@ class MCPManager:
             _run_async(self._shutdown_all())
 
     def __del__(self):
-        """GC 시 안전하게 정리 시도."""
-        try:
-            if self._sessions:
-                self.shutdown()
-        except Exception:
-            pass
+        pass
 
 
 def _mcp_installed() -> bool:
@@ -211,12 +206,23 @@ def _mcp_installed() -> bool:
         return False
 
 
+_persistent_loop: asyncio.AbstractEventLoop | None = None
+
+
+def _get_persistent_loop() -> asyncio.AbstractEventLoop:
+    """MCP 연결 전용 이벤트 루프. asyncio.run()과 달리 shutdown_asyncgens()를 호출하지 않는다."""
+    global _persistent_loop
+    if _persistent_loop is None or _persistent_loop.is_closed():
+        _persistent_loop = asyncio.new_event_loop()
+    return _persistent_loop
+
+
 def _run_async(coro: Any) -> Any:
-    """Streamlit 환경에서도 안전하게 async 실행."""
     try:
         loop = asyncio.get_running_loop()
     except RuntimeError:
-        return asyncio.run(coro)
+        loop = _get_persistent_loop()
+        return loop.run_until_complete(coro)
 
     try:
         import nest_asyncio
