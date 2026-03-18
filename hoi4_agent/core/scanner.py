@@ -257,7 +257,7 @@ class ModScanner:
         tag_dir = ctx.root / "common" / "country_tags"
         if not tag_dir.is_dir():
             return
-        for fpath in sorted(tag_dir.glob("*.txt")):
+        for fpath in sorted(tag_dir.rglob("*.txt")):
             text = self._read(fpath)
             for m in re.finditer(r'^([A-Z0-9]{3})\s*=\s*"countries/([^"]+)"', text, re.MULTILINE):
                 tag, name_file = m.group(1), m.group(2)
@@ -275,7 +275,7 @@ class ModScanner:
         hist_dir = ctx.root / "history" / "countries"
         if not hist_dir.is_dir():
             return
-        for fpath in sorted(hist_dir.glob("*.txt")):
+        for fpath in sorted(hist_dir.rglob("*.txt")):
             text = self._read(fpath)
             rel = str(fpath.relative_to(ctx.root))
 
@@ -317,7 +317,7 @@ class ModScanner:
         char_dir = ctx.root / "common" / "characters"
         if not char_dir.is_dir():
             return
-        for fpath in sorted(char_dir.glob("*.txt")):
+        for fpath in sorted(char_dir.rglob("*.txt")):
             text = self._read(fpath)
             rel = str(fpath.relative_to(ctx.root))
 
@@ -368,7 +368,7 @@ class ModScanner:
         ideo_dir = ctx.root / "common" / "ideologies"
         if not ideo_dir.is_dir():
             return
-        for fpath in sorted(ideo_dir.glob("*.txt")):
+        for fpath in sorted(ideo_dir.rglob("*.txt")):
             text = self._read(fpath)
             # 최상위: ideologies = { group = { types = { sub = { ... } } } }
             # 단순화: 들여쓰기 1탭 = 그룹, types 내부 = 서브이념
@@ -410,7 +410,7 @@ class ModScanner:
         ev_dir = ctx.root / "events"
         if not ev_dir.is_dir():
             return
-        for fpath in sorted(ev_dir.glob("*.txt")):
+        for fpath in sorted(ev_dir.rglob("*.txt")):
             text = self._read(fpath)
             rel = str(fpath.relative_to(ctx.root))
 
@@ -440,7 +440,7 @@ class ModScanner:
         foc_dir = ctx.root / "common" / "national_focus"
         if not foc_dir.is_dir():
             return
-        for fpath in sorted(foc_dir.glob("*.txt")):
+        for fpath in sorted(foc_dir.rglob("*.txt")):
             text = self._read(fpath)
             rel = str(fpath.relative_to(ctx.root))
 
@@ -466,7 +466,7 @@ class ModScanner:
         idea_dir = ctx.root / "common" / "ideas"
         if not idea_dir.is_dir():
             return
-        for fpath in sorted(idea_dir.glob("*.txt")):
+        for fpath in sorted(idea_dir.rglob("*.txt")):
             text = self._read(fpath)
             # idea 토큰: 탭2 레벨의 ID = {
             for m in re.finditer(r'^\t{2}(\w+)\s*=\s*\{', text, re.MULTILINE):
@@ -532,7 +532,7 @@ class ModScanner:
         if not iface_dir.is_dir():
             return
         count = 0
-        for fpath in iface_dir.glob("*.gfx"):
+        for fpath in iface_dir.rglob("*.gfx"):
             text = self._read(fpath)
             count += len(re.findall(r'spriteType\s*=\s*\{', text, re.IGNORECASE))
         ctx.gfx_sprites = count
