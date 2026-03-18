@@ -75,6 +75,7 @@ class PortraitPipeline:
         bg_color_top: str | None = None,
         bg_color_bottom: str | None = None,
         bg_gradient: bool | None = None,
+        scanlines_enabled: bool | None = None,
         auto_colorize: bool = True,
         colorize_render_factor: int = 35,
     ) -> None:
@@ -94,11 +95,12 @@ class PortraitPipeline:
         self.bg_color_top = bg_color_top or os.environ.get("PORTRAIT_BG_TOP", "#bfdc7f")
         self.bg_color_bottom = bg_color_bottom or os.environ.get("PORTRAIT_BG_BOTTOM", "#0a0f0a")
         self.bg_gradient = bg_gradient if bg_gradient is not None else os.environ.get("PORTRAIT_BG_GRADIENT", "true").lower() in ("true", "1", "yes")
+        self.scanlines_enabled = scanlines_enabled if scanlines_enabled is not None else os.environ.get("PORTRAIT_SCANLINES_ENABLED", "true").lower() in ("true", "1", "yes")
         
         self.auto_colorize = auto_colorize
         self.colorize_render_factor = colorize_render_factor
         
-        logger.info(f"그라데이션 설정: {self.bg_gradient} (위: {self.bg_color_top}, 아래: {self.bg_color_bottom})")
+        logger.info(f"포트레잇 설정 - 그라데이션: {self.bg_gradient} (위: {self.bg_color_top}, 아래: {self.bg_color_bottom}), 주사선: {self.scanlines_enabled}")
 
     @property
     def gemini_client(self):
@@ -229,11 +231,15 @@ class PortraitPipeline:
         )
 
         # 4. 스캔라인 (배경 합성 전에 적용)
-        cropped_with_scanlines = self.scanline.apply_scanlines(cropped, blend_mode="glow")
+        if self.scanlines_enabled:
+            logger.info("[Gemini] 주사선 효과 적용 중...")
+            cropped = self.scanline.apply_scanlines(cropped, blend_mode="glow")
+        else:
+            logger.info("[Gemini] 주사선 효과 비활성화됨")
 
         # 5. 배경 합성 (스캔라인 적용 후)
         final = self._composite_on_bg(
-            cropped_with_scanlines, 
+            cropped, 
             person_mask, 
             bg_color=self.bg_color_top,
             bg_color_bottom=self.bg_color_bottom,
@@ -305,8 +311,13 @@ class PortraitPipeline:
             styled = self.styler.apply_full_style(img_cropped)
 
         # 4. 스캔라인
-        styled = self.scanline.apply_scanlines(styled, blend_mode="glow")
+        if self.scanlines_enabled:
+            logger.info("[Local] 주사선 효과 적용 중...")
+            styled = self.scanline.apply_scanlines(styled, blend_mode="glow")
+        else:
+            logger.info("[Local] 주사선 효과 비활성화됨")
 
+        # 5. 배경 합성
         styled = self._composite_on_bg(
             styled, 
             person_mask,

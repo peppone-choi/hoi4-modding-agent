@@ -36,8 +36,9 @@ class Config:
     
     # Portrait background configuration
     portrait_bg_top: str = "#bfdc7f"
-    portrait_bg_bottom: str = "#8b9d5f"
+    portrait_bg_bottom: str = "#0a0f0a"
     portrait_bg_gradient: bool = True
+    portrait_scanlines_enabled: bool = True
 
 
 def load_config(mod_root: Path | str | None = None) -> Config:
@@ -74,8 +75,9 @@ def load_config(mod_root: Path | str | None = None) -> Config:
     
     # Portrait background configuration
     portrait_bg_top = os.getenv("PORTRAIT_BG_TOP", "#bfdc7f")
-    portrait_bg_bottom = os.getenv("PORTRAIT_BG_BOTTOM", "#8b9d5f")
+    portrait_bg_bottom = os.getenv("PORTRAIT_BG_BOTTOM", "#0a0f0a")
     portrait_bg_gradient = os.getenv("PORTRAIT_BG_GRADIENT", "true").lower() in ("true", "1", "yes")
+    portrait_scanlines_enabled = os.getenv("PORTRAIT_SCANLINES_ENABLED", "true").lower() in ("true", "1", "yes")
     
     if mod_root:
         mod_root = Path(mod_root)
@@ -104,6 +106,7 @@ def load_config(mod_root: Path | str | None = None) -> Config:
         portrait_bg_top=portrait_bg_top,
         portrait_bg_bottom=portrait_bg_bottom,
         portrait_bg_gradient=portrait_bg_gradient,
+        portrait_scanlines_enabled=portrait_scanlines_enabled,
     )
 
 

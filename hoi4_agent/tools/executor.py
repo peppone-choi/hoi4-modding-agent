@@ -15,8 +15,9 @@ class ToolExecutor:
         gemini_key: str | None = None, 
         mcp_manager=None,
         portrait_bg_top: str = "#bfdc7f",
-        portrait_bg_bottom: str = "#8b9d5f",
+        portrait_bg_bottom: str = "#0a0f0a",
         portrait_bg_gradient: bool = True,
+        portrait_scanlines_enabled: bool = True,
     ):
         self.mod_root = mod_root
         self.gemini_key = gemini_key
@@ -24,6 +25,7 @@ class ToolExecutor:
         self.portrait_bg_top = portrait_bg_top
         self.portrait_bg_bottom = portrait_bg_bottom
         self.portrait_bg_gradient = portrait_bg_gradient
+        self.portrait_scanlines_enabled = portrait_scanlines_enabled
     
     def execute(self, name: str, inp: dict) -> str:
         """
@@ -320,6 +322,7 @@ class ToolExecutor:
                 bg_color_top=self.portrait_bg_top,
                 bg_color_bottom=self.portrait_bg_bottom,
                 bg_gradient=self.portrait_bg_gradient,
+                scanlines_enabled=self.portrait_scanlines_enabled,
             )
 
             success = pipeline.process_single(input_path, output_path)

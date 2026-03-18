@@ -104,12 +104,13 @@ def _handle_input(ctx: ModContext, mod_root: Path, config):
     
     mcp_mgr = st.session_state.get("mcp_manager")
     executor = ToolExecutor(
-        mod_root, 
-        gemini_key=config.gemini_key, 
+        mod_root=mod_root,
+        gemini_key=config.gemini_key,
         mcp_manager=mcp_mgr,
         portrait_bg_top=config.portrait_bg_top,
         portrait_bg_bottom=config.portrait_bg_bottom,
         portrait_bg_gradient=config.portrait_bg_gradient,
+        portrait_scanlines_enabled=config.portrait_scanlines_enabled,
     )
     system_prompt = build_system_prompt(ctx)
 
