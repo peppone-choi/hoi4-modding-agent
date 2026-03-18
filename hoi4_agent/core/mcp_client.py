@@ -222,11 +222,20 @@ def _run_async(coro: Any) -> Any:
         loop = asyncio.get_running_loop()
     except RuntimeError:
         loop = _get_persistent_loop()
-        return loop.run_until_complete(coro)
+        try:
+            return loop.run_until_complete(coro)
+        except Exception:
+            coro.close()
+            raise
 
     try:
         import nest_asyncio
         nest_asyncio.apply()
     except ImportError:
         pass
-    return loop.run_until_complete(coro)
+    
+    try:
+        return loop.run_until_complete(coro)
+    except Exception:
+        coro.close()
+        raise
