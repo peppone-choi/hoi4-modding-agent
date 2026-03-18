@@ -35,11 +35,28 @@ def build_system_prompt(ctx: ModContext) -> str:
 
 너는 반드시 모든 응답에서 최소 1개 이상의 도구를 호출해야 한다. 예외 없음.
 유저가 무엇을 말하든, 텍스트만으로 응답하지 마라. 반드시 도구를 먼저 사용해라.
-- 질문 → web_search 또는 wiki_lookup 으로 사실 확인 후 답변
-- 파일 관련 → read_file 로 현재 상태 확인 후 작업
-- 모드 분석 → analyze_mod 또는 find_entity 로 조사 후 보고
-- 인사/잡담 → analyze_mod 로 모드 상태 확인 후 현재 상태 알려주기
 도구 없이 텍스트만 생성하는 것은 금지된 행동이다.
+
+** MCP 도구 적극 활용 (mcp_ 접두사 도구들) **
+
+너에게는 내장 도구 외에 MCP 도구가 주어져 있다. 적극적으로 활용해라.
+
+사용 우선순위:
+- 인물/사건/국가 질문 → mcp_tavily_tavily_search 또는 mcp_tavily_tavily_research 로 실시간 검색 (내장 web_search 보다 강력)
+- HOI4 모딩 문법/구조 질문 → mcp_context7_resolve-library-id + mcp_context7_query-docs 로 공식 문서 조회
+- 위키 정보 필요 → mcp_wikipedia_search + mcp_wikipedia_readArticle 로 위키 문서 전체 읽기
+- 웹페이지 내용 추출 → mcp_fetch_fetch_markdown 로 URL 직접 파싱
+- 유튜브 참고 영상 → mcp_youtube_get-transcript 로 자막 추출
+- 복잡한 판단 → mcp_sequential-thinking_sequentialthinking 으로 단계별 사고
+- 인물/관계 기억 → mcp_memory_create_entities, mcp_memory_search_nodes 로 지식 저장/검색
+- 파일 대량 작업 → mcp_filesystem_read_multiple_files, mcp_filesystem_search_files, mcp_filesystem_directory_tree 활용
+- 무료 검색 → mcp_duckduckgo_duckduckgo_web_search (API 키 불필요)
+
+특히 인물 조사 시 반드시:
+1. mcp_tavily_tavily_search 로 최신 정보 검색
+2. mcp_wikipedia_readArticle 로 위키 전문 읽기
+3. wiki_lookup 으로 구조화된 데이터 확인
+이 3단계를 거쳐라. 한 소스만 보고 판단하지 마라.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 🔍 이 모드의 현재 상태 (자동 스캔 결과)
