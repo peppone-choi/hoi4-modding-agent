@@ -376,10 +376,29 @@ class ModScanner:
         self._detect_naming(ctx)
 
         ctx.scan_time_sec = time.time() - t0
+        
+        extra_info = []
+        if ctx.game_rules:
+            extra_info.append(f"{len(ctx.game_rules)}개 게임룰")
+        if ctx.scripted_effects:
+            extra_info.append(f"{len(ctx.scripted_effects)}개 효과")
+        if ctx.scripted_triggers:
+            extra_info.append(f"{len(ctx.scripted_triggers)}개 트리거")
+        if ctx.history_units:
+            extra_info.append(f"{sum(ctx.history_units.values())}개 부대")
+        if ctx.map_strategic_regions > 0:
+            extra_info.append(f"{ctx.map_strategic_regions}개 전략지역")
+        if ctx.interface_gui:
+            extra_info.append(f"{len(ctx.interface_gui)}개 GUI")
+        if ctx.generic_common_scans:
+            extra_info.append(f"{len(ctx.generic_common_scans)}개 기타폴더")
+        
+        extra_str = f" + {', '.join(extra_info)}" if extra_info else ""
+        
         logger.info(
-            "모드 스캔 완료: {} — {}개 국가, {}개 캐릭터, {}개 이벤트, {}개 프로빈스, {}개 스테이트, {}개 테크 ({:.1f}s)",
+            "모드 스캔 완료: {} — {}개 국가, {}개 캐릭터, {}개 이벤트, {}개 프로빈스, {}개 스테이트, {}개 테크{} ({:.1f}s)",
             ctx.mod_name, len(ctx.countries), len(ctx.characters),
-            len(ctx.events), len(ctx.provinces), len(ctx.states), len(ctx.technologies), ctx.scan_time_sec,
+            len(ctx.events), len(ctx.provinces), len(ctx.states), len(ctx.technologies), extra_str, ctx.scan_time_sec,
         )
         return ctx
 
