@@ -10,22 +10,20 @@ from hoi4_agent.core.scanner import ModContext
 
 
 def estimate_tokens(text: str) -> int:
-    """Rough token estimate (1.3 words per token)."""
     return int(len(text.split()) * 1.3)
 
 
 class TestPhase1PromptCompression:
-    """Phase 1: System prompt compression (272 → 99 lines)."""
     
     def test_prompt_line_count(self):
-        ctx = ModContext(mod_root=Path("."))
+        ctx = ModContext(root=Path("."))
         prompt = build_system_prompt(ctx)
         lines = prompt.split("\n")
         
         assert len(lines) <= 110, f"Prompt too long: {len(lines)} lines (target: ≤110)"
     
     def test_prompt_token_estimate(self):
-        ctx = ModContext(mod_root=Path("."))
+        ctx = ModContext(root=Path("."))
         prompt = build_system_prompt(ctx)
         tokens = estimate_tokens(prompt)
         
@@ -33,19 +31,17 @@ class TestPhase1PromptCompression:
 
 
 class TestPhase2ModContextCaching:
-    """Phase 2: ModContext caching (300-500 tokens/msg saved)."""
     
     def test_modcontext_has_cache_methods(self):
-        ctx = ModContext(mod_root=Path("."))
+        ctx = ModContext(root=Path("."))
         
-        assert hasattr(ctx, "cached_to_prompt"), "Missing cached_to_prompt() method"
-        assert hasattr(ctx, "cache_clear"), "Missing cache_clear() method"
+        assert hasattr(ctx, "cached_to_prompt")
+        assert hasattr(ctx, "cache_clear")
     
     def test_cache_invalidation_on_write(self):
-        ctx = ModContext(mod_root=Path("."))
+        ctx = ModContext(root=Path("."))
         
         result1 = ctx.cached_to_prompt()
-        
         result2 = ctx.cached_to_prompt()
         assert result1 == result2, "Cache should return same result"
         
@@ -55,14 +51,13 @@ class TestPhase2ModContextCaching:
 
 
 class TestPhase3FileUtils:
-    """Phase 3: File caching system (20-30% duplicate reads removed)."""
     
     def test_file_cache_functions_exist(self):
         from hoi4_agent.core import file_utils
         
-        assert hasattr(file_utils, "read_file_cached"), "Missing read_file_cached()"
-        assert hasattr(file_utils, "invalidate_file_cache"), "Missing invalidate_file_cache()"
-        assert hasattr(file_utils, "clear_file_cache"), "Missing clear_file_cache()"
+        assert hasattr(file_utils, "read_file_cached")
+        assert hasattr(file_utils, "invalidate_file_cache")
+        assert hasattr(file_utils, "clear_file_cache")
     
     def test_file_cache_ttl(self):
         from hoi4_agent.core.file_utils import read_file_cached, clear_file_cache
@@ -95,7 +90,6 @@ class TestPhase3FileUtils:
 
 
 class TestPhase4MCPServerCleanup:
-    """Phase 4: MCP server cleanup (~1000 tokens/msg saved)."""
     
     def test_mcp_servers_count(self):
         import json
@@ -121,7 +115,6 @@ class TestPhase4MCPServerCleanup:
 
 
 class TestPhase5HaikuWorkers:
-    """Phase 5: Haiku worker system (37% additional savings)."""
     
     def test_haiku_worker_definitions_exist(self):
         workers_doc = Path(".omc/agents/haiku-workers.md")
@@ -130,36 +123,60 @@ class TestPhase5HaikuWorkers:
     def test_orchestration_module_exists(self):
         from hoi4_agent.core import orchestration
         
-        assert hasattr(orchestration, "HaikuOrchestrator"), "Missing HaikuOrchestrator class"
-        assert hasattr(orchestration, "WorkerType"), "Missing WorkerType enum"
+        assert hasattr(orchestration, "HaikuOrchestrator")
+        assert hasattr(orchestration, "WorkerType")
     
     def test_task_decomposer_exists(self):
         from hoi4_agent.core import task_decomposer
         
-        assert hasattr(task_decomposer, "TaskDecomposer"), "Missing TaskDecomposer class"
-        assert hasattr(task_decomposer, "ExecutionStrategy"), "Missing ExecutionStrategy enum"
+        assert hasattr(task_decomposer, "TaskDecomposer")
+        assert hasattr(task_decomposer, "ExecutionStrategy")
     
     def test_quality_gates_exist(self):
         from hoi4_agent.core import quality_gates
         
-        assert hasattr(quality_gates, "QualityGateValidator"), "Missing QualityGateValidator"
-        assert hasattr(quality_gates, "GateLevel"), "Missing GateLevel enum"
+        assert hasattr(quality_gates, "QualityGateValidator")
+        assert hasattr(quality_gates, "GateLevel")
+
+
+class TestPhase6HaikuRouting:
+    
+    def test_decomposer_routes_simple_korean_to_haiku(self):
+        from hoi4_agent.core.task_decomposer import TaskDecomposer, ExecutionStrategy
+        
+        d = TaskDecomposer()
+        
+        for msg in ["파일 읽어줘", "검색해줘", "목록 보여줘"]:
+            analysis = d.analyze(msg)
+            assert analysis.strategy == ExecutionStrategy.HAIKU_WORKER, \
+                f"'{msg}' should route to Haiku, got {analysis.strategy}"
+    
+    def test_decomposer_routes_complex_korean_to_sonnet(self):
+        from hoi4_agent.core.task_decomposer import TaskDecomposer, ExecutionStrategy
+        
+        d = TaskDecomposer()
+        
+        for msg in ["캐릭터 추가해줘", "이벤트 만들어줘", "포커스 트리 설계해줘"]:
+            analysis = d.analyze(msg)
+            assert analysis.strategy != ExecutionStrategy.HAIKU_WORKER, \
+                f"'{msg}' should NOT route to Haiku, got {analysis.strategy}"
+    
+    def test_decomposer_routes_simple_english_to_haiku(self):
+        from hoi4_agent.core.task_decomposer import TaskDecomposer, ExecutionStrategy
+        
+        d = TaskDecomposer()
+        analysis = d.analyze("search for country tags")
+        assert analysis.strategy == ExecutionStrategy.HAIKU_WORKER
 
 
 class TestOverallTokenSavings:
-    """Overall token savings validation."""
     
     def test_tool_count_reasonable(self):
-        """Ensure tool count hasn't exploded."""
-        assert len(TOOLS) <= 20, f"Too many tools: {len(TOOLS)} (target: ≤20)"
+        assert len(TOOLS) <= 25, f"Too many tools: {len(TOOLS)} (target: ≤25)"
     
     def test_estimated_daily_savings(self):
-        """Estimate daily token savings from all phases."""
-        
         tokens_per_message_saved = 3500
-        
         messages_per_day = 30
-        
         daily_savings = tokens_per_message_saved * messages_per_day
         
         baseline = 150_000

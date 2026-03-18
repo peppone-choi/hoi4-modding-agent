@@ -110,6 +110,13 @@ def main():
     render_sidebar(ctx, mod_root, config.gemini_key or "", config)
     render_chat(ctx, mod_root, config)
 
+    # MCP 커넥션 풀 정리 — Streamlit 리런 시 세션 유지, 앱 종료 시 정리
+    import atexit
+    mcp_mgr_cleanup = st.session_state.get("mcp_manager")
+    if mcp_mgr_cleanup and not st.session_state.get("_mcp_cleanup_registered"):
+        atexit.register(mcp_mgr_cleanup.shutdown)
+        st.session_state._mcp_cleanup_registered = True
+
 
 if __name__ == "__main__":
     main()

@@ -1,6 +1,8 @@
 """
 Task decomposition and Haiku suitability analysis.
 Decision tree for routing tasks to appropriate execution strategy.
+
+한국어/영어 양언어 패턴 매칭으로 채팅 메시지에서 직접 모델 라우팅 결정.
 """
 from __future__ import annotations
 
@@ -38,27 +40,43 @@ class TaskAnalysis:
 
 
 class TaskDecomposer:
-    """Analyzes tasks and determines optimal execution strategy."""
+    """Analyzes tasks and determines optimal execution strategy.
     
+    한국어 채팅 메시지를 직접 분석하여 Haiku/Sonnet/Opus 라우팅 결정.
+    보수적 기준: Haiku로 확실히 처리 가능한 것만 Haiku로 보냄.
+    """
+    
+    # === Haiku 적합 패턴 (단순 조회/검색/읽기) ===
     HAIKU_SUITABLE_PATTERNS = [
-        "fill template",
-        "generate localization",
-        "format output",
-        "validate syntax",
-        "search for",
-        "read file",
-        "list items",
-        "extract data",
+        # English
+        "fill template", "generate localization", "format output",
+        "validate syntax", "search for", "read file",
+        "list items", "extract data",
+        # 한국어 — 단순 조회/읽기
+        "읽어", "읽기", "읽고", "열어",
+        "검색", "찾아", "찾기", "찾고",
+        "목록", "리스트", "보여",
+        "스키마", "확인해",
+        "어디", "뭐야", "뭔가", "알려",
+        "몇 개", "몇개", "있어?", "있나",
     ]
-    
-    REQUIRES_REASONING_PATTERNS = [
-        "decide",
-        "choose",
-        "design",
-        "architect",
-        "plan",
-        "analyze relationship",
-        "compare options",
+
+    # === 복잡 작업 — 반드시 Sonnet 이상 ===
+    COMPLEX_TASK_PATTERNS = [
+        # English
+        "decide", "choose", "design", "architect", "plan",
+        "analyze relationship", "compare options",
+        "create", "implement", "refactor", "migrate",
+        # 한국어 — 생성/수정/분석/다단계
+        "추가해", "추가하", "만들어", "만들", "생성",
+        "수정해", "수정하", "변경해", "변경하", "바꿔",
+        "삭제해", "삭제하", "제거해", "제거하",
+        "분석해", "분석하", "계획", "설계",
+        "비교해", "비교하", "고쳐", "고치",
+        "캐릭터", "인물", "지도자", "장군", "제독",
+        "이벤트", "포커스", "디시전",
+        "포트레잇", "초상화", "사진",
+        "전체", "모든", "일괄", "배치",
     ]
     
     def analyze(self, task_description: str, context: dict | None = None) -> TaskAnalysis:
@@ -122,16 +140,23 @@ class TaskDecomposer:
         """Assess task complexity based on description and context."""
         task_lower = task.lower()
         
+        # 복잡 작업 키워드 → 무조건 COMPLEX
+        if any(p in task_lower for p in self.COMPLEX_TASK_PATTERNS):
+            return TaskComplexity.COMPLEX
+        
+        # 영어 trivial 힌트
         if any(word in task_lower for word in ["trivial", "simple", "just", "only"]):
             return TaskComplexity.TRIVIAL
         
-        if any(word in task_lower for word in ["complex", "multiple", "several", "integrate"]):
-            return TaskComplexity.COMPLEX
-        
+        # 외부 컨텍스트 의존성 많으면 COMPLEX
         if context and len(context.get("dependencies", [])) > 3:
             return TaskComplexity.COMPLEX
         
-        if len(task.split()) > 20:
+        # 긴 메시지 = 복잡할 가능성
+        # 한국어는 공백 기준 split이 부정확하므로 글자 수도 참고
+        word_count = len(task.split())
+        char_count = len(task)
+        if word_count > 20 or char_count > 80:
             return TaskComplexity.MODERATE
         
         return TaskComplexity.SIMPLE
@@ -140,17 +165,23 @@ class TaskDecomposer:
         """Check if task involves template filling."""
         return any(pattern in task for pattern in [
             "fill", "generate", "create from template", "format", "substitute",
+            "로컬", "번역", "현지화",
         ])
     
     def _is_data_retrieval(self, task: str) -> bool:
         """Check if task is primarily data retrieval."""
         return any(pattern in task for pattern in [
+            # English
             "search", "find", "read", "list", "get", "fetch", "retrieve", "extract",
+            # 한국어
+            "읽어", "읽기", "읽고", "검색", "찾아", "찾기", "찾고",
+            "목록", "보여", "알려", "어디", "뭐야", "있어", "있나",
+            "열어", "스키마", "확인",
         ])
     
     def _requires_reasoning(self, task: str) -> bool:
-        """Check if task requires complex reasoning."""
-        return any(pattern in task for pattern in self.REQUIRES_REASONING_PATTERNS)
+        """Check if task requires complex reasoning (→ must use Sonnet+)."""
+        return any(p in task for p in self.COMPLEX_TASK_PATTERNS)
     
     def _requires_tools(self, task: str, context: dict | None) -> bool:
         """Check if task requires tool calls."""
@@ -158,13 +189,26 @@ class TaskDecomposer:
         
         tool_indicators = [
             "file", "search", "validate", "write", "read", "modify", "update",
+            "파일", "검색", "검증", "저장", "읽", "수정", "업데이트",
         ]
         
         return any(indicator in task_lower for indicator in tool_indicators)
     
     def _estimate_tokens(self, task: str, context: dict | None) -> int:
-        """Estimate token count for task execution."""
-        base = len(task.split()) * 1.3
+        """Estimate token count for task execution.
+        
+        한국어는 글자당 ~1.5 토큰, 영어는 단어당 ~1.3 토큰.
+        """
+        # 한국어 비율 추정 (한글 문자 수)
+        korean_chars = sum(1 for c in task if '\uac00' <= c <= '\ud7a3')
+        total_chars = len(task)
+        
+        if korean_chars > total_chars * 0.3:
+            # 한국어 위주 메시지
+            base = total_chars * 1.5
+        else:
+            # 영어 위주 메시지
+            base = len(task.split()) * 1.3
         
         if context:
             context_size = sum(len(str(v)) for v in context.values())
@@ -174,33 +218,33 @@ class TaskDecomposer:
     
     def _classify_task_type(self, task: str) -> str:
         """Classify task into high-level type."""
-        if "localization" in task or "loc" in task:
+        if any(k in task for k in ["localization", "loc", "로컬", "번역"]):
             return "localization"
-        if "validate" in task or "check" in task:
+        if any(k in task for k in ["validate", "check", "검증", "확인"]):
             return "validation"
-        if "search" in task or "find" in task:
+        if any(k in task for k in ["search", "find", "검색", "찾"]):
             return "search"
-        if "read" in task or "get" in task:
+        if any(k in task for k in ["read", "get", "읽", "열"]):
             return "retrieval"
-        if "template" in task or "fill" in task:
+        if any(k in task for k in ["template", "fill", "템플릿"]):
             return "template"
-        if "batch" in task or "multiple" in task:
+        if any(k in task for k in ["batch", "multiple", "일괄", "배치"]):
             return "batch"
         return "general"
     
     def _select_worker_type(self, task: str) -> WorkerType:
         """Select appropriate Haiku worker type."""
-        if "template" in task or "fill" in task:
+        if any(k in task for k in ["template", "fill", "템플릿"]):
             return WorkerType.TEMPLATE_FILLER
-        if "search" in task or "find" in task:
+        if any(k in task for k in ["search", "find", "검색", "찾"]):
             return WorkerType.SEARCH_RUNNER
-        if "validate" in task or "check" in task:
+        if any(k in task for k in ["validate", "check", "검증", "확인"]):
             return WorkerType.VALIDATOR_RUNNER
-        if "localization" in task or "loc" in task:
+        if any(k in task for k in ["localization", "loc", "로컬", "번역"]):
             return WorkerType.LOC_GENERATOR
-        if "read" in task or "get" in task:
+        if any(k in task for k in ["read", "get", "읽", "열"]):
             return WorkerType.FILE_READER
-        if "batch" in task or "multiple" in task:
+        if any(k in task for k in ["batch", "multiple", "일괄", "배치"]):
             return WorkerType.BATCH_ITERATOR
         
         return WorkerType.FILE_READER

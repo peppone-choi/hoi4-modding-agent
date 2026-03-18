@@ -8,6 +8,7 @@ import streamlit as st
 from hoi4_agent.core.orchestration import execute_sonnet_parallel
 from hoi4_agent.core.prompt import TOOLS, build_system_prompt
 from hoi4_agent.core.scanner import ModContext
+from hoi4_agent.core.task_decomposer import TaskDecomposer, ExecutionStrategy
 from hoi4_agent.tools.executor import ToolExecutor
 
 _ERROR_PREFIXES = (
@@ -19,6 +20,8 @@ _ERROR_PREFIXES = (
     "[포트레잇 오류]",
     "[포트레잇 검색 오류]",
 )
+
+_decomposer = TaskDecomposer()
 
 
 def render_chat(ctx: ModContext, mod_root: Path, config):
@@ -83,6 +86,41 @@ def _build_tool_summary(tool_log: list[dict]) -> str:
     return "\n".join(lines)
 
 
+def _select_model(config, prompt: str) -> str:
+    """TaskDecomposer 기반 모델 라우팅.
+    
+    유저가 수동으로 모델을 선택했으면 그대로 사용.
+    '자동' 모드일 때만 TaskDecomposer가 Haiku/Sonnet 결정.
+    Opus 에스컬레이션이 활성화되어 있으면 무조건 Opus.
+    """
+    if config.ai_provider != "anthropic":
+        return config.ollama_model
+    
+    # Opus 에스컬레이션 — 최우선
+    if st.session_state.get("escalated_to_opus", False):
+        return config.opus_model
+    
+    # 유저가 수동 선택한 경우
+    model_selection = st.session_state.get("model_selection", "자동 (Sonnet 기본) - 권장")
+    if "Haiku" in model_selection:
+        return config.haiku_model
+    if "Sonnet" in model_selection:
+        return config.sonnet_model
+    if "Opus" in model_selection:
+        return config.opus_model
+    
+    # 자동 모드: TaskDecomposer가 판단
+    # Haiku 연속 실패 중이면 Haiku 스킵
+    if st.session_state.get("haiku_consecutive_failures", 0) >= 2:
+        return config.sonnet_model
+    
+    analysis = _decomposer.analyze(prompt)
+    if analysis.strategy == ExecutionStrategy.HAIKU_WORKER:
+        return config.haiku_model
+    
+    return config.sonnet_model
+
+
 def _handle_input(ctx: ModContext, mod_root: Path, config):
     prompt = st.chat_input("무엇을 할까요?")
     if not prompt:
@@ -98,26 +136,28 @@ def _handle_input(ctx: ModContext, mod_root: Path, config):
     if config.ai_provider == "anthropic":
         import anthropic
         client = anthropic.Anthropic(api_key=config.anthropic_key)
-        
-        if "escalated_to_opus" not in st.session_state:
-            st.session_state.escalated_to_opus = False
-        
-        model_selection = st.session_state.get("model_selection", "자동 (Sonnet 기본) - 권장")
-        if st.session_state.escalated_to_opus:
-            model = config.opus_model
-            st.info("🚀 **Opus 모드 활성화** (Sonnet 12회 실패 → 자동 전환)")
-        elif "Haiku" in model_selection:
-            model = config.haiku_model
-        elif "Sonnet" in model_selection:
-            model = config.sonnet_model
-        elif "Opus" in model_selection:
-            model = config.opus_model
-        else:
-            model = config.default_model
     else:
         from hoi4_agent.core.ollama_client import OllamaClient
         client = OllamaClient(base_url=config.ollama_base_url, model=config.ollama_model)
-        model = config.ollama_model
+    
+    # 세션 상태 초기화
+    if "consecutive_failures" not in st.session_state:
+        st.session_state.consecutive_failures = 0
+    if "sonnet_parallel_count" not in st.session_state:
+        st.session_state.sonnet_parallel_count = 1
+    if "escalated_to_opus" not in st.session_state:
+        st.session_state.escalated_to_opus = False
+    if "haiku_consecutive_failures" not in st.session_state:
+        st.session_state.haiku_consecutive_failures = 0
+    
+    # TaskDecomposer 기반 모델 선택
+    model = _select_model(config, prompt)
+    used_haiku = (model == config.haiku_model)
+    
+    if st.session_state.get("escalated_to_opus", False):
+        st.info("🚀 **Opus 모드 활성화** (Sonnet 12회 실패 → 자동 전환)")
+    elif used_haiku:
+        st.caption("⚡ 단순 작업 감지 → Haiku 워커")
     
     mcp_mgr = st.session_state.get("mcp_manager")
     executor = ToolExecutor(
@@ -136,13 +176,6 @@ def _handle_input(ctx: ModContext, mod_root: Path, config):
 
     api_msgs = _get_api_messages()
     api_msgs.append({"role": "user", "content": prompt})
-    
-    if "consecutive_failures" not in st.session_state:
-        st.session_state.consecutive_failures = 0
-    if "sonnet_parallel_count" not in st.session_state:
-        st.session_state.sonnet_parallel_count = 1
-    if "escalated_to_opus" not in st.session_state:
-        st.session_state.escalated_to_opus = False
 
     with st.chat_message("assistant"):
         images: list[str] = []
@@ -188,7 +221,7 @@ def _handle_input(ctx: ModContext, mod_root: Path, config):
                         system=system_prompt,
                         tools=all_tools,
                         messages=api_msgs,
-                        tool_choice={"type": "any"} if rounds == 1 else {"type": "auto"},
+                        tool_choice={"type": "auto"},
                     ) as stream:
                         resp_text = st.write_stream(stream.text_stream)
                         resp = stream.get_final_message()
@@ -251,39 +284,65 @@ def _handle_input(ctx: ModContext, mod_root: Path, config):
                 else:
                     break
             
-            if config.ai_provider == "anthropic" and model == config.sonnet_model:
+            # === 에러 추적: Haiku / Sonnet 분리 ===
+            if config.ai_provider == "anthropic":
                 if has_errors:
-                    st.session_state.consecutive_failures += 1
-                    consecutive_failures = st.session_state.consecutive_failures
-                    
-                    if consecutive_failures == 1:
-                        st.session_state.sonnet_parallel_count = 2
-                        st.caption("⚠️ 오류 감지 → 다음 요청부터 Sonnet 2개 병렬 실행")
-                    elif consecutive_failures == 3:
-                        st.session_state.sonnet_parallel_count = 4
-                        st.caption("⚠️ 오류 지속 → 다음 요청부터 Sonnet 4개 병렬 실행")
-                    elif consecutive_failures == 7:
-                        st.session_state.sonnet_parallel_count = 5
-                        st.caption("⚠️ 오류 지속 → 다음 요청부터 Sonnet 5개 병렬 실행")
-                    elif consecutive_failures >= 12:
-                        st.session_state.escalated_to_opus = True
-                        st.warning("🚀 Sonnet 12회 실패 → 다음 요청부터 **Opus** 자동 전환")
+                    if used_haiku:
+                        # Haiku 실패 → 카운터 증가, 2회 연속 실패면 Sonnet으로 전환
+                        st.session_state.haiku_consecutive_failures = (
+                            st.session_state.get("haiku_consecutive_failures", 0) + 1
+                        )
+                        if st.session_state.haiku_consecutive_failures >= 2:
+                            st.caption("⚠️ Haiku 연속 실패 → 다음부터 Sonnet 사용")
+                    else:
+                        # Sonnet 실패 → 기존 점진적 병렬 에스컬레이션
+                        st.session_state.consecutive_failures += 1
+                        consecutive_failures = st.session_state.consecutive_failures
+                        
+                        if consecutive_failures == 1:
+                            st.session_state.sonnet_parallel_count = 2
+                            st.caption("⚠️ 오류 감지 → 다음 요청부터 Sonnet 2개 병렬 실행")
+                        elif consecutive_failures == 3:
+                            st.session_state.sonnet_parallel_count = 4
+                            st.caption("⚠️ 오류 지속 → 다음 요청부터 Sonnet 4개 병렬 실행")
+                        elif consecutive_failures == 7:
+                            st.session_state.sonnet_parallel_count = 5
+                            st.caption("⚠️ 오류 지속 → 다음 요청부터 Sonnet 5개 병렬 실행")
+                        elif consecutive_failures >= 12:
+                            st.session_state.escalated_to_opus = True
+                            st.warning("🚀 Sonnet 12회 실패 → 다음 요청부터 **Opus** 자동 전환")
                 else:
-                    st.session_state.consecutive_failures = 0
-                    st.session_state.sonnet_parallel_count = 1
-                    if st.session_state.escalated_to_opus:
-                        st.session_state.escalated_to_opus = False
-                        st.success("✅ 성공 → Sonnet으로 자동 복귀")
+                    # 성공 → 모든 실패 카운터 리셋
+                    if used_haiku:
+                        st.session_state.haiku_consecutive_failures = 0
+                    else:
+                        st.session_state.consecutive_failures = 0
+                        st.session_state.sonnet_parallel_count = 1
+                        if st.session_state.get("escalated_to_opus", False):
+                            st.session_state.escalated_to_opus = False
+                            st.success("✅ 성공 → Sonnet으로 자동 복귀")
+                        # Sonnet 성공 → Haiku 실패 카운터도 리셋 (복구 허용)
+                        st.session_state.haiku_consecutive_failures = 0
 
-        except anthropic.APIConnectionError:
-            full += "\n\n❌ **API 연결 실패** — 인터넷 연결을 확인하세요."
-            st.error("Anthropic API 연결 실패. 인터넷 연결을 확인하세요.")
-        except anthropic.RateLimitError:
-            full += "\n\n❌ **API 요청 제한** — 잠시 후 다시 시도하세요."
-            st.error("API 요청 제한에 도달했습니다. 잠시 후 다시 시도하세요.")
-        except anthropic.APIStatusError as exc:
-            full += f"\n\n❌ **API 오류 ({exc.status_code})** — {exc.message}"
-            st.error(f"API 오류 ({exc.status_code}): {exc.message}")
+        except Exception as exc:
+            exc_type = type(exc).__name__
+            try:
+                import anthropic as _anthropic
+                if isinstance(exc, _anthropic.APIConnectionError):
+                    full += "\n\n❌ **API 연결 실패** — 인터넷 연결을 확인하세요."
+                    st.error("Anthropic API 연결 실패. 인터넷 연결을 확인하세요.")
+                elif isinstance(exc, _anthropic.RateLimitError):
+                    full += "\n\n❌ **API 요청 제한** — 잠시 후 다시 시도하세요."
+                    st.error("API 요청 제한에 도달했습니다. 잠시 후 다시 시도하세요.")
+                elif isinstance(exc, _anthropic.APIStatusError):
+                    full += f"\n\n❌ **API 오류 ({exc.status_code})** — {exc.message}"
+                    st.error(f"API 오류 ({exc.status_code}): {exc.message}")
+                else:
+                    full += f"\n\n❌ **오류** ({exc_type}) — {exc}"
+                    st.error(f"오류 ({exc_type}): {exc}")
+            except ImportError:
+                full += f"\n\n❌ **오류** ({exc_type}) — {exc}"
+                st.error(f"오류 ({exc_type}): {exc}")
 
         if tool_log:
             summary = _build_tool_summary(tool_log)
