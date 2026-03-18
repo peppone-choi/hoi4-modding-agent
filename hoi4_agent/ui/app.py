@@ -107,7 +107,7 @@ def main():
                 mod_root=mod_root,
             )
 
-    render_sidebar(ctx, mod_root, config.gemini_key or "")
+    render_sidebar(ctx, mod_root, config.gemini_key or "", config)
     render_chat(ctx, mod_root, config)
 
 

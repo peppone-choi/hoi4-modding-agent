@@ -27,7 +27,10 @@ class Config:
     mod_root: Path | None = None
     db_path: Path | None = None
     
-    default_model: str = "claude-opus-4-6"
+    haiku_model: str = "claude-haiku-4-5"
+    sonnet_model: str = "claude-sonnet-4-6"
+    opus_model: str = "claude-opus-4-6"
+    default_model: str = "claude-sonnet-4-6"
     max_tokens: int = 16384
     max_tool_rounds: int = 50
     
@@ -57,6 +60,11 @@ def load_config(mod_root: Path | str | None = None) -> Config:
     load_dotenv()
     
     ai_provider = os.getenv("AI_PROVIDER", "anthropic").lower()
+    
+    haiku_model = "claude-haiku-4-5"
+    sonnet_model = "claude-sonnet-4-6"
+    opus_model = "claude-opus-4-6"
+    default_model = os.getenv("CLAUDE_MODEL", "claude-sonnet-4-6")
     
     anthropic_key = os.getenv("ANTHROPIC_API_KEY", "")
     if ai_provider == "anthropic" and not anthropic_key:
@@ -103,6 +111,10 @@ def load_config(mod_root: Path | str | None = None) -> Config:
         google_cx=google_cx,
         mod_root=mod_root,
         db_path=db_path,
+        haiku_model=haiku_model,
+        sonnet_model=sonnet_model,
+        opus_model=opus_model,
+        default_model=default_model,
         portrait_bg_top=portrait_bg_top,
         portrait_bg_bottom=portrait_bg_bottom,
         portrait_bg_gradient=portrait_bg_gradient,

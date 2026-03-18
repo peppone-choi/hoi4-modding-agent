@@ -6,11 +6,13 @@ import streamlit as st
 from hoi4_agent.core.scanner import ModContext, ModScanner
 
 
-def render_sidebar(ctx: ModContext, mod_root, gemini_key: str):
+def render_sidebar(ctx: ModContext, mod_root, gemini_key: str, config):
     with st.sidebar:
         _render_session_panel()
         st.divider()
         _render_session_search()
+        st.divider()
+        _render_model_settings(config)
         st.divider()
         _render_mod_info(ctx, mod_root)
         st.divider()
@@ -109,6 +111,40 @@ def _render_session_search():
                         st.rerun()
         else:
             st.caption("결과 없음")
+
+
+def _render_model_settings(config):
+    st.header("⚙️ AI 모델 설정")
+    
+    if config.ai_provider == "anthropic":
+        model_options = {
+            "자동 (Sonnet 기본) - 권장": "auto",
+            "절약 모드 (Haiku) - 빠르고 저렴": "haiku", 
+            "표준 모드 (Sonnet) - 균형": "sonnet",
+            "고급 모드 (Opus) - 복잡한 작업": "opus"
+        }
+        
+        selected = st.selectbox(
+            "모델 선택",
+            options=list(model_options.keys()),
+            index=0,
+            help="간단한 작업은 Haiku, 중간 작업은 Sonnet, 어려운 작업은 Opus를 사용합니다.",
+            key="model_selection"
+        )
+        
+        model_mode = model_options[selected]
+        
+        if model_mode == "haiku":
+            st.caption("💰 비용: 매우 저렴 (Opus의 1/18)")
+        elif model_mode == "sonnet":
+            st.caption("💰 비용: 표준 (Opus의 1/5)")
+        elif model_mode == "opus":
+            st.caption("💰 비용: 고가 (5배)")
+        else:
+            st.caption("💰 자동: 작업에 따라 Haiku/Sonnet/Opus 선택")
+            
+    elif config.ai_provider == "ollama":
+        st.caption(f"현재: {config.ollama_model} (무료)")
 
 
 def _render_mod_info(ctx: ModContext, mod_root):

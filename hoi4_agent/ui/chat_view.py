@@ -96,7 +96,16 @@ def _handle_input(ctx: ModContext, mod_root: Path, config):
     if config.ai_provider == "anthropic":
         import anthropic
         client = anthropic.Anthropic(api_key=config.anthropic_key)
-        model = config.default_model
+        
+        model_selection = st.session_state.get("model_selection", "자동 (Sonnet 기본) - 권장")
+        if "Haiku" in model_selection:
+            model = config.haiku_model
+        elif "Sonnet" in model_selection:
+            model = config.sonnet_model
+        elif "Opus" in model_selection:
+            model = config.opus_model
+        else:
+            model = config.default_model
     else:
         from hoi4_agent.core.ollama_client import OllamaClient
         client = OllamaClient(base_url=config.ollama_base_url, model=config.ollama_model)
