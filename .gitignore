@@ -12,6 +12,7 @@
 *.sqlite
 *.sqlite3
 .chat_sessions.db
+tools/.chat_sessions*.db
 
 # Python
 __pycache__/
@@ -72,3 +73,6 @@ dmypy.json
 # OS
 Thumbs.db
 Desktop.ini
+
+# Mod Symlink (project-specific)
+Breaking-Point

@@ -83,10 +83,12 @@ def load_config(mod_root: Path | str | None = None) -> Config:
         mod_root_env = os.getenv("MOD_ROOT")
         mod_root = Path(mod_root_env) if mod_root_env else None
     
+    project_root = Path(__file__).parent.parent.parent
     if mod_root:
-        db_path = mod_root / "tools" / ".chat_sessions.db"
+        mod_name = mod_root.name.lower().replace(" ", "_").replace("-", "_")
+        db_path = project_root / "tools" / f".chat_sessions_{mod_name}.db"
     else:
-        db_path = Path.cwd() / ".chat_sessions.db"
+        db_path = project_root / "tools" / ".chat_sessions.db"
     
     return Config(
         ai_provider=ai_provider,
