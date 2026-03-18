@@ -166,11 +166,17 @@ def _handle_input(ctx: ModContext, mod_root: Path, config):
                         })
 
                         if result.startswith("IMAGE:"):
-                            ip = result[6:]
-                            if Path(ip).exists():
-                                st.image(ip, width=200)
-                                images.append(ip)
-                            result = f"[이미지 표시됨] {ip}"
+                            relative_path = result[6:].strip()
+                            absolute_path = Path(relative_path)
+                            if not absolute_path.is_absolute():
+                                absolute_path = mod_root / relative_path
+                            
+                            if absolute_path.exists():
+                                st.image(str(absolute_path), width=200)
+                                images.append(str(absolute_path))
+                                result = f"[이미지 표시됨] {relative_path}"
+                            else:
+                                result = f"[이미지 없음] {relative_path} (찾은 경로: {absolute_path})"
 
                         tool_results.append(
                             {
