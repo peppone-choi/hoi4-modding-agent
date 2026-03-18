@@ -10,6 +10,9 @@ Pillow==10.2.0
 rembg==2.0.67
 opencv-python==4.9.0.80
 mediapipe==0.10.21
+torch>=2.0.0
+torchvision>=0.15.0
+deoldify>=0.1.0
 
 # 데이터 모델
 pydantic==2.11.0

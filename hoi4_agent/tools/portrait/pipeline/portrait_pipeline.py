@@ -75,6 +75,8 @@ class PortraitPipeline:
         bg_color_top: str | None = None,
         bg_color_bottom: str | None = None,
         bg_gradient: bool | None = None,
+        auto_colorize: bool = True,
+        colorize_render_factor: int = 35,
     ) -> None:
         if mode not in ("gemini", "local"):
             raise ValueError(f"mode은 'gemini' 또는 'local'이어야 합니다: {mode!r}")
@@ -90,8 +92,13 @@ class PortraitPipeline:
         self._gemini_client = None
         
         self.bg_color_top = bg_color_top or os.environ.get("PORTRAIT_BG_TOP", "#bfdc7f")
-        self.bg_color_bottom = bg_color_bottom or os.environ.get("PORTRAIT_BG_BOTTOM", "#8b9d5f")
+        self.bg_color_bottom = bg_color_bottom or os.environ.get("PORTRAIT_BG_BOTTOM", "#0a0f0a")
         self.bg_gradient = bg_gradient if bg_gradient is not None else os.environ.get("PORTRAIT_BG_GRADIENT", "true").lower() in ("true", "1", "yes")
+        
+        self.auto_colorize = auto_colorize
+        self.colorize_render_factor = colorize_render_factor
+        
+        logger.info(f"그라데이션 설정: {self.bg_gradient} (위: {self.bg_color_top}, 아래: {self.bg_color_bottom})")
 
     @property
     def gemini_client(self):
@@ -119,9 +126,35 @@ class PortraitPipeline:
         Returns:
             성공 시 ``True``.
         """
+        if self.auto_colorize:
+            input_path = self._colorize_if_needed(input_path)
+        
         if self.mode == "gemini":
             return self._process_gemini(input_path, output_path)
         return self._process_local(input_path, output_path)
+    
+    def _colorize_if_needed(self, input_path: Path) -> Path:
+        """흑백 이미지를 자동 감지하고 채색한다."""
+        try:
+            from hoi4_agent.tools.portrait.colorization.colorizer import auto_colorize_if_needed
+            
+            img = Image.open(input_path)
+            colorized, was_colorized = auto_colorize_if_needed(
+                img,
+                render_factor=self.colorize_render_factor,
+            )
+            
+            if was_colorized:
+                colorized_path = input_path.parent / f"{input_path.stem}_colorized{input_path.suffix}"
+                colorized.save(colorized_path)
+                logger.info(f"흑백 이미지 채색 완료: {colorized_path}")
+                return colorized_path
+            
+            return input_path
+            
+        except Exception as exc:
+            logger.warning(f"자동 채색 실패 — 원본 사용: {exc}")
+            return input_path
 
     # ------------------------------------------------------------------
     # Gemini 파이프라인
@@ -195,18 +228,19 @@ class PortraitPipeline:
             str(nobg_path), "PNG"
         )
 
+        # 4. 스캔라인 (배경 합성 전에 적용)
+        cropped_with_scanlines = self.scanline.apply_scanlines(cropped, blend_mode="glow")
+
+        # 5. 배경 합성 (스캔라인 적용 후)
         final = self._composite_on_bg(
-            cropped, 
+            cropped_with_scanlines, 
             person_mask, 
             bg_color=self.bg_color_top,
             bg_color_bottom=self.bg_color_bottom,
             use_gradient=self.bg_gradient,
         )
 
-        # 4. 스캔라인 (고해상도)
-        final = self.scanline.apply_scanlines(final, blend_mode="glow")
-
-        # 5. 최종 리사이즈 — 마지막에만 156×210
+        # 6. 최종 리사이즈 — 마지막에만 156×210
         final = final.resize((PORTRAIT_WIDTH, PORTRAIT_HEIGHT), Image.LANCZOS)
         final.save(str(output_path), "PNG")
         logger.info(f"[Gemini] 초상화 생성 완료: {output_path}")
@@ -383,14 +417,20 @@ class PortraitPipeline:
         img_arr = np.array(image.convert("RGB"), dtype=np.float64)
         height, width = img_arr.shape[:2]
         
+        logger.debug(f"배경 합성: gradient={use_gradient}, top={bg_color}, bottom={bg_color_bottom}")
+        
         if use_gradient and bg_color_bottom:
             rgb_top = np.array(_hex_to_rgb(bg_color), dtype=np.float64)
             rgb_bottom = np.array(_hex_to_rgb(bg_color_bottom), dtype=np.float64)
             
-            gradient = np.linspace(0, 1, height)[:, np.newaxis, np.newaxis]
-            bg_arr = rgb_top * (1 - gradient) + rgb_bottom * gradient
-            bg_arr = np.broadcast_to(bg_arr, (height, width, 3))
+            logger.info(f"그라데이션 배경 생성: {bg_color} (위) → {bg_color_bottom} (아래)")
+            
+            gradient = np.linspace(0, 1, height)[:, np.newaxis]
+            bg_arr = np.zeros((height, width, 3), dtype=np.float64)
+            for c in range(3):
+                bg_arr[:, :, c] = rgb_top[c] * (1 - gradient) + rgb_bottom[c] * gradient
         else:
+            logger.info(f"단색 배경 생성: {bg_color}")
             rgb = _hex_to_rgb(bg_color)
             bg_arr = np.full_like(img_arr, rgb, dtype=np.float64)
 
