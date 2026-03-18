@@ -172,23 +172,30 @@ class PortraitPipeline:
             styled_rgb, GEMINI_CROP_WIDTH, GEMINI_CROP_HEIGHT
         )
 
-        # 3. rembg 후처리 → 깨끗한 보라 배경 재합성
+        # 3. rembg 후처리 → 고해상도에서 보라 배경 합성
         nobg = self._remove_background(cropped)
+        person_mask = self._extract_person_mask(nobg)
+
+        # rembg 마스크 검증 — 인물 영역이 10% 미만이면 rembg 실패로 판단
+        mask_coverage = float(person_mask.mean())
+        if mask_coverage < 0.10:
+            logger.warning(
+                f"[Gemini] rembg 마스크 부족 (coverage={mask_coverage:.1%}) → 마스크 없이 합성"
+            )
+            person_mask = np.ones_like(person_mask)
+
         nobg_path = output_path.parent / f"{output_path.stem}_nobg.png"
-        nobg.save(str(nobg_path), "PNG")
-
-        nobg_small = nobg.resize(
-            (PORTRAIT_WIDTH, PORTRAIT_HEIGHT), Image.LANCZOS
+        nobg.resize((PORTRAIT_WIDTH, PORTRAIT_HEIGHT), Image.LANCZOS).save(
+            str(nobg_path), "PNG"
         )
-        person_mask = self._extract_person_mask(nobg_small)
-        cropped_small = cropped.resize(
-            (PORTRAIT_WIDTH, PORTRAIT_HEIGHT), Image.LANCZOS
-        )
-        final = self._composite_on_bg(cropped_small, person_mask)
 
-        # 4. 스캔라인
+        final = self._composite_on_bg(cropped, person_mask)
+
+        # 4. 스캔라인 (고해상도)
         final = self.scanline.apply_scanlines(final, blend_mode="glow")
 
+        # 5. 최종 리사이즈 — 마지막에만 156×210
+        final = final.resize((PORTRAIT_WIDTH, PORTRAIT_HEIGHT), Image.LANCZOS)
         final.save(str(output_path), "PNG")
         logger.info(f"[Gemini] 초상화 생성 완료: {output_path}")
         return True
