@@ -159,7 +159,7 @@ def diff_preview(mod_root: Path, path: str, new_content: str) -> str:
 # safe_write: 자동 백업 + 쓰기
 # =====================================================================
 
-def safe_write(mod_root: Path, path: str, content: str, backup: bool = True) -> str:
+def safe_write(mod_root: Path, path: str, content: str, backup: bool = False) -> str:
     """파일을 안전하게 쓴다. backup=True 이면 .bak 백업."""
     fp = mod_root / path
     fp.parent.mkdir(parents=True, exist_ok=True)

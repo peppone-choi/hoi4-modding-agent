@@ -1,9 +1,11 @@
 """Chat view UI: message display and user input handling."""
+import asyncio
 import json
 from pathlib import Path
 
 import streamlit as st
 
+from hoi4_agent.core.orchestration import execute_sonnet_parallel
 from hoi4_agent.core.prompt import TOOLS, build_system_prompt
 from hoi4_agent.core.scanner import ModContext
 from hoi4_agent.tools.executor import ToolExecutor
@@ -97,8 +99,14 @@ def _handle_input(ctx: ModContext, mod_root: Path, config):
         import anthropic
         client = anthropic.Anthropic(api_key=config.anthropic_key)
         
+        if "escalated_to_opus" not in st.session_state:
+            st.session_state.escalated_to_opus = False
+        
         model_selection = st.session_state.get("model_selection", "자동 (Sonnet 기본) - 권장")
-        if "Haiku" in model_selection:
+        if st.session_state.escalated_to_opus:
+            model = config.opus_model
+            st.info("🚀 **Opus 모드 활성화** (Sonnet 12회 실패 → 자동 전환)")
+        elif "Haiku" in model_selection:
             model = config.haiku_model
         elif "Sonnet" in model_selection:
             model = config.sonnet_model
@@ -128,31 +136,65 @@ def _handle_input(ctx: ModContext, mod_root: Path, config):
 
     api_msgs = _get_api_messages()
     api_msgs.append({"role": "user", "content": prompt})
+    
+    if "consecutive_failures" not in st.session_state:
+        st.session_state.consecutive_failures = 0
+    if "sonnet_parallel_count" not in st.session_state:
+        st.session_state.sonnet_parallel_count = 1
+    if "escalated_to_opus" not in st.session_state:
+        st.session_state.escalated_to_opus = False
 
     with st.chat_message("assistant"):
         images: list[str] = []
         full = ""
         tool_log: list[dict] = []
         rounds = 0
+        has_errors = False
 
         try:
             while rounds < config.max_tool_rounds:
                 rounds += 1
-
-                with client.messages.stream(
-                    model=model,
-                    max_tokens=config.max_tokens,
-                    system=system_prompt,
-                    tools=all_tools,
-                    messages=api_msgs,
-                    tool_choice={"type": "any"} if rounds == 1 else {"type": "auto"},
-                ) as stream:
-                    resp_text = st.write_stream(stream.text_stream)
-                    resp = stream.get_final_message()
-
+                
                 streamed = ""
-                if isinstance(resp_text, str):
-                    streamed = resp_text
+                use_sonnet_parallel = (
+                    config.ai_provider == "anthropic"
+                    and model == config.sonnet_model
+                    and st.session_state.sonnet_parallel_count > 1
+                )
+                
+                if use_sonnet_parallel:
+                    count = st.session_state.sonnet_parallel_count
+                    st.caption(f"🔄 Sonnet {count}개 병렬 실행 중...")
+                    resp = asyncio.run(
+                        execute_sonnet_parallel(
+                            client=client,
+                            model=model,
+                            system_prompt=system_prompt,
+                            tools=all_tools,
+                            messages=api_msgs,
+                            max_tokens=config.max_tokens,
+                            count=count,
+                        )
+                    )
+                    for blk in resp.content:
+                        if blk.type == "text":
+                            streamed += blk.text
+                    if streamed:
+                        st.markdown(streamed)
+                else:
+                    with client.messages.stream(
+                        model=model,
+                        max_tokens=config.max_tokens,
+                        system=system_prompt,
+                        tools=all_tools,
+                        messages=api_msgs,
+                        tool_choice={"type": "any"} if rounds == 1 else {"type": "auto"},
+                    ) as stream:
+                        resp_text = st.write_stream(stream.text_stream)
+                        resp = stream.get_final_message()
+                    if isinstance(resp_text, str):
+                        streamed = resp_text
+                
                 full += streamed
 
                 tool_results = []
@@ -165,6 +207,9 @@ def _handle_input(ctx: ModContext, mod_root: Path, config):
                         result = executor.execute(blk.name, blk.input)
 
                         is_error = result.startswith(_ERROR_PREFIXES)
+                        if is_error:
+                            has_errors = True
+                        
                         tool_log.append({
                             "tool": blk.name,
                             "input": json.dumps(
@@ -205,6 +250,30 @@ def _handle_input(ctx: ModContext, mod_root: Path, config):
                     api_msgs.append({"role": "user", "content": tool_results})
                 else:
                     break
+            
+            if config.ai_provider == "anthropic" and model == config.sonnet_model:
+                if has_errors:
+                    st.session_state.consecutive_failures += 1
+                    consecutive_failures = st.session_state.consecutive_failures
+                    
+                    if consecutive_failures == 1:
+                        st.session_state.sonnet_parallel_count = 2
+                        st.caption("⚠️ 오류 감지 → 다음 요청부터 Sonnet 2개 병렬 실행")
+                    elif consecutive_failures == 3:
+                        st.session_state.sonnet_parallel_count = 4
+                        st.caption("⚠️ 오류 지속 → 다음 요청부터 Sonnet 4개 병렬 실행")
+                    elif consecutive_failures == 7:
+                        st.session_state.sonnet_parallel_count = 5
+                        st.caption("⚠️ 오류 지속 → 다음 요청부터 Sonnet 5개 병렬 실행")
+                    elif consecutive_failures >= 12:
+                        st.session_state.escalated_to_opus = True
+                        st.warning("🚀 Sonnet 12회 실패 → 다음 요청부터 **Opus** 자동 전환")
+                else:
+                    st.session_state.consecutive_failures = 0
+                    st.session_state.sonnet_parallel_count = 1
+                    if st.session_state.escalated_to_opus:
+                        st.session_state.escalated_to_opus = False
+                        st.success("✅ 성공 → Sonnet으로 자동 복귀")
 
         except anthropic.APIConnectionError:
             full += "\n\n❌ **API 연결 실패** — 인터넷 연결을 확인하세요."

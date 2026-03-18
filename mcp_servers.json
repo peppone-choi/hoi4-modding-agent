@@ -10,10 +10,6 @@
       "TAVILY_API_KEY": "${TAVILY_API_KEY}"
     }
   },
-  "filesystem": {
-    "command": "npx",
-    "args": ["-y", "@modelcontextprotocol/server-filesystem", "."]
-  },
   "memory": {
     "command": "npx",
     "args": ["-y", "@modelcontextprotocol/server-memory"]
@@ -29,13 +25,5 @@
   "wikipedia": {
     "command": "npx",
     "args": ["-y", "wikipedia-mcp"]
-  },
-  "duckduckgo": {
-    "command": "npx",
-    "args": ["-y", "duckduckgo-mcp-server"]
-  },
-  "youtube": {
-    "command": "npx",
-    "args": ["-y", "youtube-transcript-mcp"]
   }
 }

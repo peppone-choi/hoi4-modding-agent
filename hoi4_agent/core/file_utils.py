@@ -4,8 +4,50 @@
 """
 from __future__ import annotations
 
+import time
 from pathlib import Path
 from typing import Iterator
+
+# File content cache: {path_str: (content, timestamp)}
+_file_cache: dict[str, tuple[str, float]] = {}
+
+
+def read_file_cached(file_path: Path, max_age_seconds: int = 300) -> str:
+    """Read file with caching (default TTL: 5 minutes).
+    
+    Args:
+        file_path: File path to read
+        max_age_seconds: Cache TTL in seconds (default: 300)
+        
+    Returns:
+        File content as string
+    """
+    cache_key = str(file_path.resolve())
+    now = time.time()
+    
+    if cache_key in _file_cache:
+        content, timestamp = _file_cache[cache_key]
+        if now - timestamp < max_age_seconds:
+            return content
+    
+    content = file_path.read_text(encoding="utf-8-sig", errors="replace")
+    _file_cache[cache_key] = (content, now)
+    return content
+
+
+def invalidate_file_cache(file_path: Path) -> None:
+    """Invalidate cache for a specific file.
+    
+    Args:
+        file_path: File path to invalidate
+    """
+    cache_key = str(file_path.resolve())
+    _file_cache.pop(cache_key, None)
+
+
+def clear_file_cache() -> None:
+    """Clear entire file cache."""
+    _file_cache.clear()
 
 
 def get_file_line_count(file_path: Path) -> int:

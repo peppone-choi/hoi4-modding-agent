@@ -18,6 +18,7 @@ class ToolExecutor:
         portrait_bg_bottom: str = "#0a0f0a",
         portrait_bg_gradient: bool = True,
         portrait_scanlines_enabled: bool = True,
+        mod_context=None,
     ):
         self.mod_root = mod_root
         self.gemini_key = gemini_key
@@ -26,6 +27,7 @@ class ToolExecutor:
         self.portrait_bg_bottom = portrait_bg_bottom
         self.portrait_bg_gradient = portrait_bg_gradient
         self.portrait_scanlines_enabled = portrait_scanlines_enabled
+        self.mod_context = mod_context
     
     def execute(self, name: str, inp: dict) -> str:
         """
@@ -111,12 +113,24 @@ class ToolExecutor:
         return f"[오류] 알 수 없는 lookup_type: {lt}"
     
     def _read_file(self, inp: dict) -> str:
-        from hoi4_agent.core.file_utils import read_file_smart
+        from hoi4_agent.core.file_utils import read_file_smart, read_file_cached
         fp = self.mod_root / inp["path"]
         if not fp.exists():
             return f"[파일 없음] {inp['path']}"
         
-        content, meta = read_file_smart(fp, max_lines=inp.get("max_lines", 2000))
+        max_lines = inp.get("max_lines", 2000)
+        
+        if max_lines == 2000:
+            try:
+                content = read_file_cached(fp, max_age_seconds=300)
+                lines = content.splitlines()
+                if len(lines) <= 2000:
+                    numbered = "\n".join(f"{idx}: {line}" for idx, line in enumerate(lines, 1))
+                    return numbered
+            except Exception:
+                pass
+        
+        content, meta = read_file_smart(fp, max_lines=max_lines)
         
         if meta.get("warning"):
             footer = f"\n\n[경고] {meta['warning']}\n"
@@ -205,7 +219,7 @@ class ToolExecutor:
         return content + footer
     
     def _edit_file_lines(self, inp: dict) -> str:
-        from hoi4_agent.core.file_utils import edit_file_lines
+        from hoi4_agent.core.file_utils import edit_file_lines, invalidate_file_cache
         fp = self.mod_root / inp["path"]
         
         result = edit_file_lines(
@@ -214,6 +228,11 @@ class ToolExecutor:
             end_line=inp["end_line"],
             new_content=inp["new_content"],
         )
+        
+        if result["success"]:
+            invalidate_file_cache(fp)
+            if self.mod_context:
+                self.mod_context.cache_clear()
         
         if not result["success"]:
             return result["message"]
@@ -225,7 +244,7 @@ class ToolExecutor:
         return msg
     
     def _replace_in_file(self, inp: dict) -> str:
-        from hoi4_agent.core.file_utils import replace_in_file
+        from hoi4_agent.core.file_utils import replace_in_file, invalidate_file_cache
         fp = self.mod_root / inp["path"]
         
         result = replace_in_file(
@@ -234,6 +253,11 @@ class ToolExecutor:
             new_text=inp["new_text"],
             max_replacements=inp.get("max_replacements"),
         )
+        
+        if result["success"]:
+            invalidate_file_cache(fp)
+            if self.mod_context:
+                self.mod_context.cache_clear()
         
         if not result["success"]:
             return result["message"]
@@ -248,14 +272,24 @@ class ToolExecutor:
         return msg
     
     def _write_file(self, inp: dict) -> str:
+        from hoi4_agent.core.file_utils import invalidate_file_cache
         fp = self.mod_root / inp["path"]
         fp.parent.mkdir(parents=True, exist_ok=True)
         fp.write_text(inp["content"], encoding="utf-8")
+        invalidate_file_cache(fp)
+        if self.mod_context:
+            self.mod_context.cache_clear()
         return f"[저장 완료] {inp['path']} ({len(inp['content'])}자)"
     
     def _safe_write(self, inp: dict) -> str:
         from hoi4_agent.core.mod_tools import safe_write
-        return safe_write(self.mod_root, inp["path"], inp["content"], inp.get("backup", True))
+        from hoi4_agent.core.file_utils import invalidate_file_cache
+        result = safe_write(self.mod_root, inp["path"], inp["content"], inp.get("backup", False))
+        fp = self.mod_root / inp["path"]
+        invalidate_file_cache(fp)
+        if self.mod_context:
+            self.mod_context.cache_clear()
+        return result
     
     def _list_files(self, inp: dict) -> str:
         dp = self.mod_root / inp["path"]

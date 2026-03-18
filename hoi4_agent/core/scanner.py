@@ -111,6 +111,17 @@ class ModContext:
     scan_time_sec: float = 0.0
 
     # ----- 프롬프트 생성 -----
+    _cached_prompt: str | None = None
+    
+    def cached_to_prompt(self) -> str:
+        """캐싱된 프롬프트 반환. 파일 쓰기 시 cache_clear() 호출."""
+        if self._cached_prompt is None:
+            self._cached_prompt = self.to_prompt()
+        return self._cached_prompt
+    
+    def cache_clear(self) -> None:
+        """프롬프트 캐시 무효화 (파일 쓰기 후 호출)."""
+        self._cached_prompt = None
 
     def to_prompt(self) -> str:
         """동적 시스템 프롬프트 조각을 생성한다."""
