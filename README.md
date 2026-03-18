@@ -5,9 +5,10 @@ Hearts of Iron IV 모드 전용 AI 어시스턴트.
 
 ## 주요 기능
 
+- **AI Provider 선택** — Anthropic Claude (클라우드) 또는 Ollama (로컬) 선택 가능
 - **자동 스캔** — 국가, 캐릭터, 이벤트, 이념, 포커스 트리를 시작 시 자동 감지
 - **51개 도구** — 내장 16개 + MCP 35개 (Context7, Tavily, Filesystem, Memory, Fetch, Sequential Thinking)
-- **실시간 스트리밍** — 응답이 토큰 단위로 실시간 출력 (Anthropic Streaming API)
+- **실시간 스트리밍** — 응답이 토큰 단위로 실시간 출력 (Anthropic/Ollama Streaming API)
 - **자율 실행** — 복잡한 작업을 계획→실행→검증 루프로 자율적으로 끝까지 처리 (Ralph Loop / Ultrawork 스타일)
 - **허위 보고 방지** — 도구를 호출하지 않은 행동을 "했다"고 주장하는 것을 원천 차단
 - **의도 분석 (IntentGate)** — 유저 메시지의 진짜 의도를 파악하고 즉시 행동
@@ -91,12 +92,69 @@ hoi4-agent .
 
 ### 필수 소프트웨어
 
-| 소프트웨어 | 버전      | 설치 방법                        |
-| ---------- | --------- | -------------------------------- |
-| Python     | 3.11 이상 | 아래 참조                        |
-| Git        | 최신      | 아래 참조                        |
-| pip        | 최신      | Python과 함께 설치됨             |
-| C 컴파일러 | -         | 아래 참조 (포트레잇 기능에 필요) |
+| 소프트웨어  | 버전      | 설치 방법                                 |
+| ----------- | --------- | ----------------------------------------- |
+| Python      | 3.11 이상 | 아래 참조                                 |
+| Git         | 최신      | 아래 참조                                 |
+| pip         | 최신      | Python과 함께 설치됨                      |
+| AI Provider | -         | **Anthropic Claude** 또는 **Ollama** 선택 |
+| C 컴파일러  | -         | 아래 참조 (포트레잇 기능에 필요)          |
+
+### AI Provider 선택
+
+이 에이전트는 두 가지 AI provider를 지원합니다:
+
+| Provider             | 장점                                     | 단점                         | 추천 용도                      |
+| -------------------- | ---------------------------------------- | ---------------------------- | ------------------------------ |
+| **Anthropic Claude** | 최고 품질, 도구 사용 완벽 지원, MCP 호환 | 유료 (사용량 기반)           | 프로덕션, 고품질 모딩 작업     |
+| **Ollama**           | 완전 무료, 로컬 실행, 인터넷 불필요      | 품질 낮음, 도구 미지원, 느림 | 실험, 비용 절감, 오프라인 작업 |
+
+**권장**: Anthropic Claude (도구 호출, MCP 통합이 필수적임)
+
+#### Anthropic Claude 설정
+
+1. https://console.anthropic.com/ 에서 API 키 발급
+2. `.env` 파일에 `ANTHROPIC_API_KEY` 설정
+3. 완료 (설정 섹션 참조)
+
+#### Ollama 설정 (로컬 AI)
+
+**macOS / Linux**
+
+```bash
+# 1. Ollama 설치
+curl -fsSL https://ollama.com/install.sh | sh
+
+# 2. 서버 시작 (백그라운드 실행)
+ollama serve
+
+# 3. 모델 다운로드 (70B 권장, 최소 16GB RAM 필요)
+ollama pull llama3.1:70b
+
+# 또는 더 작은 모델 (8B, 4GB RAM 권장)
+ollama pull llama3.1:8b
+```
+
+**Windows**
+
+1. https://ollama.com/download/windows 에서 설치 프로그램 다운로드
+2. 설치 후 PowerShell에서:
+
+```powershell
+# 서버는 자동 시작됨
+# 모델 다운로드
+ollama pull llama3.1:70b
+```
+
+**설정 완료 후** `.env` 파일에:
+
+```env
+AI_PROVIDER=ollama
+OLLAMA_BASE_URL=http://localhost:11434
+OLLAMA_MODEL=llama3.1:70b
+```
+
+**주의**: Ollama는 도구 호출을 지원하지 않습니다. 파일 읽기/쓰기, 검색, 포트레잇 생성 등이 작동하지 않으며, 단순 채팅만 가능합니다.
 
 ### Python 설치
 
@@ -254,9 +312,14 @@ Windows:
 copy .env.example .env
 ```
 
-`.env` 파일을 텍스트 에디터로 열어 API 키를 입력:
+`.env` 파일을 텍스트 에디터로 열어 AI Provider와 API 키를 설정:
+
+**옵션 A: Anthropic Claude (권장)**
 
 ```env
+# AI Provider 선택
+AI_PROVIDER=anthropic
+
 # 필수 — Claude API (채팅 에이전트)
 ANTHROPIC_API_KEY=sk-ant-xxxxx
 
@@ -268,13 +331,31 @@ GEMINI_API_KEY=xxxxx
 TAVILY_API_KEY=tvly-xxxxx
 ```
 
+**옵션 B: Ollama (로컬 AI, 무료)**
+
+```env
+# AI Provider 선택
+AI_PROVIDER=ollama
+
+# Ollama 설정 (서버가 localhost:11434에서 실행 중이어야 함)
+OLLAMA_BASE_URL=http://localhost:11434
+OLLAMA_MODEL=llama3.1:70b
+
+# 필수 — Gemini API (포트레잇 생성)
+GEMINI_API_KEY=xxxxx
+
+# 선택 — 웹 검색
+TAVILY_API_KEY=tvly-xxxxx
+```
+
 ### API 키 발급 방법
 
-| API              | 발급 링크                                   | 비용                  |
-| ---------------- | ------------------------------------------- | --------------------- |
-| Anthropic Claude | https://console.anthropic.com/settings/keys | 유료 (사용량 기반)    |
-| Google Gemini    | https://aistudio.google.com/apikey          | 무료 티어 있음        |
-| Tavily Search    | https://app.tavily.com/home                 | 무료 티어 있음 (선택) |
+| API              | 발급 링크                                   | 비용                  | 필수 여부                  |
+| ---------------- | ------------------------------------------- | --------------------- | -------------------------- |
+| Anthropic Claude | https://console.anthropic.com/settings/keys | 유료 (사용량 기반)    | AI_PROVIDER=anthropic일 때 |
+| Ollama           | https://ollama.com                          | 무료 (로컬 실행)      | AI_PROVIDER=ollama일 때    |
+| Google Gemini    | https://aistudio.google.com/apikey          | 무료 티어 있음        | 포트레잇 생성 사용 시      |
+| Tavily Search    | https://app.tavily.com/home                 | 무료 티어 있음 (선택) | 선택 (웹 검색 품질 향상)   |
 
 ## 실행
 

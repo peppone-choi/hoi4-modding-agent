@@ -12,7 +12,13 @@ from dotenv import load_dotenv
 class Config:
     """Application configuration."""
     
-    anthropic_key: str
+    ai_provider: str = "anthropic"
+    
+    anthropic_key: str | None = None
+    
+    ollama_base_url: str = "http://localhost:11434"
+    ollama_model: str = "llama3.1:70b"
+    
     gemini_key: str | None = None
     tavily_key: str | None = None
     google_api_key: str | None = None
@@ -44,12 +50,17 @@ def load_config(mod_root: Path | str | None = None) -> Config:
     """
     load_dotenv()
     
+    ai_provider = os.getenv("AI_PROVIDER", "anthropic").lower()
+    
     anthropic_key = os.getenv("ANTHROPIC_API_KEY", "")
-    if not anthropic_key:
+    if ai_provider == "anthropic" and not anthropic_key:
         raise ValueError(
-            "ANTHROPIC_API_KEY is required. "
+            "ANTHROPIC_API_KEY is required when AI_PROVIDER=anthropic. "
             "Set it in .env or environment variables."
         )
+    
+    ollama_base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+    ollama_model = os.getenv("OLLAMA_MODEL", "llama3.1:70b")
     
     gemini_key = os.getenv("GEMINI_API_KEY")
     tavily_key = os.getenv("TAVILY_API_KEY")
@@ -68,7 +79,10 @@ def load_config(mod_root: Path | str | None = None) -> Config:
         db_path = Path.cwd() / ".chat_sessions.db"
     
     return Config(
-        anthropic_key=anthropic_key,
+        ai_provider=ai_provider,
+        anthropic_key=anthropic_key if anthropic_key else None,
+        ollama_base_url=ollama_base_url,
+        ollama_model=ollama_model,
         gemini_key=gemini_key,
         tavily_key=tavily_key,
         google_api_key=google_api_key,
