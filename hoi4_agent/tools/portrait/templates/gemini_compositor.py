@@ -50,10 +50,12 @@ UNIFORM_PROMPTS: dict[str, dict[str, str]] = {
 # 합성 기본 프롬프트 템플릿
 COMPOSITE_PROMPT_TEMPLATE = (
     "Edit this portrait photo: dress this person in {uniform_description}. "
-    "Keep the person's face, expression, and skin tone exactly the same. "
+    "Keep the person's face, expression, skin texture, and skin tone exactly the same. "
     "Only change the clothing and add appropriate headgear if needed. "
     "The background should be plain/transparent. "
-    "Maintain photorealistic quality."
+    "CRITICAL: The result MUST look like a real photograph, NOT a painting or illustration. "
+    "Preserve photographic realism — real fabric texture, natural lighting, no brush strokes, "
+    "no artistic stylization, no cartoon or illustrated look."
 )
 
 

@@ -25,5 +25,9 @@
   "wikipedia": {
     "command": "npx",
     "args": ["-y", "wikipedia-mcp"]
+  },
+  "filesystem": {
+    "command": "npx",
+    "args": ["-y", "@modelcontextprotocol/server-filesystem", "."]
   }
 }

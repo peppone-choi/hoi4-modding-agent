@@ -41,14 +41,21 @@ GEMINI_CROP_HEIGHT = 678  # 156:210 비율 유지
 # Gemini에게 "HOI4 TFR 모드 포트레잇"이 무엇인지 최대한 명시적으로 설명.
 DEFAULT_TFR_STYLE_PROMPT = (
     "Edit this portrait photo for a Hearts of Iron IV leader portrait. "
-    "Keep it PHOTOREALISTIC — do NOT paint, stylize, or cartoonify.\n"
-    "1. Preserve every facial detail, skin texture, hair, and clothing exactly.\n"
+    "This MUST look like a real photograph — NOT an illustration, NOT a painting, "
+    "NOT a digital artwork, and NOT a typical HOI4-style illustrated portrait.\n"
+    "CRITICAL STYLE RULE: The final image must be indistinguishable from a real "
+    "photograph. Preserve photographic grain, natural lighting, real skin pores, "
+    "and camera lens characteristics. Do NOT apply any artistic filters, oil-paint "
+    "effects, brush strokes, cel-shading, or any form of stylization.\n"
+    "1. Preserve every facial detail, skin texture, wrinkles, pores, hair strands, "
+    "and clothing fabric exactly as they appear in the original photo.\n"
     "2. Desaturate ~40%. Shift color temperature slightly warm.\n"
-    "3. Lower brightness ~10%, increase contrast ~20% for a moody feel.\n"
+    "3. Lower brightness ~10%, increase contrast ~20% for a moody, cinematic feel.\n"
     "4. IMPORTANT: Keep the background simple and uniform, or remove it entirely. "
     "Do NOT add complex backgrounds, gradients, or textures — we will add the background later.\n"
     "5. Do NOT alter the person's face, expression, clothing, or pose.\n"
-    "6. Output a clean head-and-shoulders portrait, focusing only on the person."
+    "6. Output a clean head-and-shoulders portrait, focusing only on the person.\n"
+    "REMINDER: Real photo look only. Zero illustration. Zero painting. Zero cartoon."
 )
 
 
