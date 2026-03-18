@@ -34,6 +34,18 @@ class ToolExecutor:
                 return self._wiki_lookup(inp)
             if name == "read_file":
                 return self._read_file(inp)
+            if name == "read_file_chunk":
+                return self._read_file_chunk(inp)
+            if name == "get_file_info":
+                return self._get_file_info(inp)
+            if name == "search_in_file":
+                return self._search_in_file(inp)
+            if name == "read_file_full_chunked":
+                return self._read_file_full_chunked(inp)
+            if name == "edit_file_lines":
+                return self._edit_file_lines(inp)
+            if name == "replace_in_file":
+                return self._replace_in_file(inp)
             if name == "write_file":
                 return self._write_file(inp)
             if name == "safe_write":
@@ -86,11 +98,141 @@ class ToolExecutor:
         return f"[오류] 알 수 없는 lookup_type: {lt}"
     
     def _read_file(self, inp: dict) -> str:
+        from hoi4_agent.core.file_utils import read_file_smart
         fp = self.mod_root / inp["path"]
         if not fp.exists():
             return f"[파일 없음] {inp['path']}"
-        t = fp.read_text(encoding="utf-8-sig", errors="replace")
-        return t[:20000] + (f"\n\n... ({len(t)-20000}자 생략)" if len(t) > 20000 else "")
+        
+        content, meta = read_file_smart(fp, max_lines=inp.get("max_lines", 2000))
+        
+        if meta.get("warning"):
+            footer = f"\n\n[경고] {meta['warning']}\n"
+            if meta.get("next_offset"):
+                footer += f"다음 청크: read_file_chunk(path='{inp['path']}', offset={meta['next_offset']})\n"
+            footer += f"파일 정보: get_file_info(path='{inp['path']}')"
+            return content + footer
+        
+        return content
+    
+    def _read_file_chunk(self, inp: dict) -> str:
+        from hoi4_agent.core.file_utils import read_file_chunk
+        fp = self.mod_root / inp["path"]
+        if not fp.exists():
+            return f"[파일 없음] {inp['path']}"
+        
+        offset = inp.get("offset", 1)
+        num_lines = inp.get("num_lines", 2000)
+        
+        content, has_more = read_file_chunk(fp, start_line=offset, num_lines=num_lines)
+        
+        footer = f"\n\n[청크 정보] 줄 {offset}~{offset + num_lines - 1}"
+        if has_more:
+            next_offset = offset + num_lines
+            footer += f"\n더 읽기: read_file_chunk(path='{inp['path']}', offset={next_offset})"
+        else:
+            footer += "\n[파일 끝]"
+        
+        return content + footer
+    
+    def _get_file_info(self, inp: dict) -> str:
+        from hoi4_agent.core.file_utils import get_file_info
+        fp = self.mod_root / inp["path"]
+        info = get_file_info(fp)
+        
+        if "error" in info:
+            return f"[오류] {info['error']}"
+        
+        return json.dumps(info, ensure_ascii=False, indent=2)
+    
+    def _search_in_file(self, inp: dict) -> str:
+        from hoi4_agent.core.file_utils import search_in_large_file
+        fp = self.mod_root / inp["path"]
+        if not fp.exists():
+            return f"[파일 없음] {inp['path']}"
+        
+        results = search_in_large_file(
+            fp,
+            pattern=inp["pattern"],
+            max_results=inp.get("max_results", 100),
+        )
+        
+        if not results:
+            return f"[검색 결과 없음] '{inp['pattern']}'"
+        
+        lines = [f"[검색 결과 {len(results)}건]"]
+        for r in results:
+            lines.append(f"줄 {r['line']}: {r['text']}")
+        
+        return "\n".join(lines)
+    
+    def _read_file_full_chunked(self, inp: dict) -> str:
+        from hoi4_agent.core.file_utils import read_file_full_chunked
+        fp = self.mod_root / inp["path"]
+        
+        content, meta = read_file_full_chunked(
+            fp,
+            offset=inp.get("offset", 1),
+            limit=inp.get("limit", 2000),
+        )
+        
+        if "error" in meta:
+            return f"[오류] {meta['error']}"
+        
+        footer = f"\n\n[청크 정보]\n"
+        footer += f"- 청크: {meta['chunk_number']}/{meta['total_chunks']}\n"
+        footer += f"- 전체: {meta['total_lines']}줄\n"
+        footer += f"- 현재: {meta['current_offset']}-{meta['current_offset'] + meta['lines_read'] - 1}줄 ({meta['lines_read']}줄)\n"
+        footer += f"- 진행률: {int(meta['progress'] * 100)}%\n"
+        
+        if not meta['is_last_chunk']:
+            footer += f"- 다음: read_file_full_chunked(path='{inp['path']}', offset={meta['next_offset']}, limit={inp.get('limit', 2000)})\n"
+        else:
+            footer += f"- 상태: 마지막 청크\n"
+        
+        return content + footer
+    
+    def _edit_file_lines(self, inp: dict) -> str:
+        from hoi4_agent.core.file_utils import edit_file_lines
+        fp = self.mod_root / inp["path"]
+        
+        result = edit_file_lines(
+            fp,
+            start_line=inp["start_line"],
+            end_line=inp["end_line"],
+            new_content=inp["new_content"],
+        )
+        
+        if not result["success"]:
+            return result["message"]
+        
+        msg = result["message"]
+        msg += f"\n- 편집 전: {result['total_lines_before']}줄"
+        msg += f"\n- 편집 후: {result['total_lines_after']}줄"
+        
+        return msg
+    
+    def _replace_in_file(self, inp: dict) -> str:
+        from hoi4_agent.core.file_utils import replace_in_file
+        fp = self.mod_root / inp["path"]
+        
+        result = replace_in_file(
+            fp,
+            old_text=inp["old_text"],
+            new_text=inp["new_text"],
+            max_replacements=inp.get("max_replacements"),
+        )
+        
+        if not result["success"]:
+            return result["message"]
+        
+        msg = result["message"]
+        
+        if result["preview"]:
+            msg += f"\n\n[교체 위치 미리보기 (최대 10개)]"
+            for p in result["preview"]:
+                msg += f"\n줄 {p['line']}: {p['text']}"
+        
+        return msg
     
     def _write_file(self, inp: dict) -> str:
         fp = self.mod_root / inp["path"]
