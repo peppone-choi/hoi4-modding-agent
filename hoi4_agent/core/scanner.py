@@ -88,6 +88,7 @@ class ModContext:
     file_counts: dict[str, int] = field(default_factory=dict)  # category → count
     naming_prefix: str = ""           # 파일 접두사 (예: TFR_, KR_ 등)
     naming_conventions: dict[str, str] = field(default_factory=dict)  # 파일 타입 → 패턴
+    directory_map: dict[str, dict] = field(default_factory=dict)
 
     # 통계
     total_files: int = 0
@@ -141,6 +142,16 @@ class ModContext:
             for cat, cnt in sorted(self.file_counts.items(), key=lambda x: -x[1])[:15]:
                 lines.append(f"  {cat}: {cnt}개")
 
+        if self.directory_map:
+            lines.append("\n디렉토리 구조 (표준 HOI4 폴더):")
+            for dir_path in sorted(self.directory_map.keys()):
+                dir_data = self.directory_map[dir_path]
+                purpose = dir_data.get("purpose", "")
+                file_count = dir_data.get("file_count", 0)
+                content_type = dir_data.get("content_type", "")
+                if purpose:
+                    lines.append(f"  {dir_path} → {purpose} ({file_count}개 파일, 타입: {content_type})")
+
         return "\n".join(lines)
 
     def to_stats_dict(self) -> dict[str, Any]:
@@ -181,6 +192,7 @@ class ModScanner:
         self._scan_decisions(ctx)
         self._scan_localisation(ctx)
         self._scan_gfx(ctx)
+        self._scan_directories(ctx)
         self._count_files(ctx)
         self._detect_naming(ctx)
 
@@ -217,7 +229,8 @@ class ModScanner:
         if m:
             ctx.supported_version = m.group(1)
 
-        ctx.mod_tags = re.findall(r'"([^"]+)"', re.search(r'tags\s*=\s*\{([^}]+)\}', text, re.DOTALL).group(1)) if re.search(r'tags\s*=\s*\{', text) else []
+        tags_match = re.search(r'tags\s*=\s*\{([^}]+)\}', text, re.DOTALL)
+        ctx.mod_tags = re.findall(r'"([^"]+)"', tags_match.group(1)) if tags_match else []
         ctx.replace_paths = re.findall(r'replace_path\s*=\s*"([^"]+)"', text)
 
     # ------------------------------------------------------------------
@@ -577,6 +590,29 @@ class ModScanner:
                 top = foc_prefixes.most_common(1)[0][0]
                 ctx.naming_conventions["focuses"] = f"{top}_focus_TAG.txt"
 
+    def _scan_directories(self, ctx: ModContext) -> None:
+        from hoi4_agent.core.hoi4_schema import get_directory_info
+        
+        for dirpath, dirnames, filenames in os.walk(ctx.root):
+            rel_path = Path(dirpath).relative_to(ctx.root)
+            
+            if rel_path == Path("."):
+                continue
+            
+            dir_key = str(rel_path).replace("\\", "/") + "/"
+            
+            dir_info = get_directory_info(dir_key)
+            if dir_info:
+                ctx.directory_map[dir_key] = {
+                    "path": dir_key,
+                    "purpose": dir_info.get("purpose", ""),
+                    "description": dir_info.get("description", ""),
+                    "content_type": dir_info.get("content_type", ""),
+                    "file_pattern": dir_info.get("file_pattern", ""),
+                    "file_count": len(filenames),
+                    "subdir_count": len(dirnames),
+                }
+
     # ------------------------------------------------------------------
     # 유틸리티
     # ------------------------------------------------------------------
@@ -665,3 +701,27 @@ def find_mod_root(start: Path | None = None) -> Path | None:
             return current
 
     return None
+
+
+    def _scan_directories(self, ctx: ModContext) -> None:
+        from hoi4_agent.core.hoi4_schema import get_directory_info
+        
+        for dirpath, dirnames, filenames in os.walk(ctx.root):
+            rel_path = Path(dirpath).relative_to(ctx.root)
+            
+            if rel_path == Path("."):
+                continue
+            
+            dir_key = str(rel_path).replace("\\", "/") + "/"
+            
+            dir_info = get_directory_info(dir_key)
+            if dir_info:
+                ctx.directory_map[dir_key] = {
+                    "path": dir_key,
+                    "purpose": dir_info.get("purpose", ""),
+                    "description": dir_info.get("description", ""),
+                    "content_type": dir_info.get("content_type", ""),
+                    "file_pattern": dir_info.get("file_pattern", ""),
+                    "file_count": len(filenames),
+                    "subdir_count": len(dirnames),
+                }

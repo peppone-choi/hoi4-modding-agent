@@ -700,3 +700,185 @@ def get_full_auto_types() -> list[str]:
 def get_template_auto_types() -> list[str]:
     """템플릿 자동화 가능한 파일 타입 목록."""
     return AUTOMATION_TIERS["template_auto"]["file_types"]
+
+
+DIRECTORY_SCHEMA = {
+    "common/": {
+        "purpose": "Game rules, definitions, and static data",
+        "description": "Common game elements like ideologies, focuses, decisions, modifiers",
+        "subdirs": {
+            "characters/": {
+                "purpose": "Character definitions",
+                "description": "Leader, general, admiral, and advisor definitions",
+                "file_pattern": "*.txt",
+                "content_type": "character",
+                "example_keys": ["portraits", "country_leader", "corps_commander", "advisor"],
+            },
+            "national_focus/": {
+                "purpose": "National focus trees",
+                "description": "Country-specific focus tree definitions",
+                "file_pattern": "*.txt",
+                "content_type": "focus",
+                "example_keys": ["focus_tree", "id", "icon", "prerequisite", "mutually_exclusive"],
+            },
+            "ideologies/": {
+                "purpose": "Political ideology definitions",
+                "description": "Ideology types, groups, and modifiers",
+                "file_pattern": "*.txt",
+                "content_type": "ideology",
+                "example_keys": ["ideologies", "types", "modifiers"],
+            },
+            "ideas/": {
+                "purpose": "National spirits and advisors",
+                "description": "Country-specific ideas, buffs, and debuffs",
+                "file_pattern": "*.txt",
+                "content_type": "idea",
+                "example_keys": ["ideas", "cost", "removal_cost", "modifier"],
+            },
+            "decisions/": {
+                "purpose": "Decision categories and actions",
+                "description": "Player decisions, missions, and one-time actions",
+                "file_pattern": "*.txt",
+                "content_type": "decision",
+                "example_keys": ["decisions", "available", "visible", "complete_effect"],
+            },
+            "country_tags/": {
+                "purpose": "Country tag definitions",
+                "description": "Maps country tags (USA, SOV) to country files",
+                "file_pattern": "*.txt",
+                "content_type": "country_tag",
+                "example_keys": ["USA", "SOV", "GER"],
+            },
+            "on_actions/": {
+                "purpose": "Event triggers on game events",
+                "description": "Scripts that fire when specific game events occur",
+                "file_pattern": "*.txt",
+                "content_type": "on_action",
+                "example_keys": ["on_startup", "on_war", "on_capitulation"],
+            },
+        },
+    },
+    "events/": {
+        "purpose": "Event definitions",
+        "description": "Country events, news events, and story-driven content",
+        "file_pattern": "*.txt",
+        "content_type": "event",
+        "example_keys": ["country_event", "news_event", "id", "title", "desc", "option"],
+    },
+    "history/": {
+        "purpose": "Initial game state and historical data",
+        "description": "Starting conditions for countries, states, and units",
+        "subdirs": {
+            "countries/": {
+                "purpose": "Country starting conditions",
+                "description": "Initial politics, technology, leaders, and resources",
+                "file_pattern": "*.txt",
+                "content_type": "country_history",
+                "example_keys": ["capital", "oob", "set_politics", "set_technology", "recruit_character"],
+            },
+            "states/": {
+                "purpose": "State (province) definitions",
+                "description": "State borders, resources, buildings, and ownership",
+                "file_pattern": "*.txt",
+                "content_type": "state",
+                "example_keys": ["id", "name", "provinces", "manpower", "buildings"],
+            },
+            "units/": {
+                "purpose": "Order of battle (OOB) files",
+                "description": "Starting military unit positions and compositions",
+                "file_pattern": "*.txt",
+                "content_type": "oob",
+                "example_keys": ["division_template", "units", "instant_effect"],
+            },
+        },
+    },
+    "gfx/": {
+        "purpose": "Graphics and visual assets",
+        "description": "Portraits, flags, UI elements, and sprites",
+        "subdirs": {
+            "leaders/": {
+                "purpose": "Leader portraits",
+                "description": "PNG/TGA files for leaders and advisors",
+                "file_pattern": "*.png, *.tga, *.dds",
+                "content_type": "image",
+            },
+            "flags/": {
+                "purpose": "Country flags",
+                "description": "Small, medium, and large flag variants",
+                "file_pattern": "*.tga",
+                "content_type": "image",
+            },
+            "interface/": {
+                "purpose": "UI graphics",
+                "description": "Buttons, backgrounds, and interface elements",
+                "file_pattern": "*.dds, *.png",
+                "content_type": "image",
+            },
+        },
+    },
+    "localisation/": {
+        "purpose": "Localized text strings",
+        "description": "Translations for events, names, and UI elements",
+        "subdirs": {
+            "english/": {
+                "purpose": "English localization",
+                "description": "English text strings",
+                "file_pattern": "*_l_english.yml",
+                "content_type": "localisation",
+                "example_keys": ["l_english:", "KEY:0"],
+            },
+        },
+    },
+    "interface/": {
+        "purpose": "UI layout definitions",
+        "description": "GFX sprite definitions and GUI layouts",
+        "file_pattern": "*.gfx, *.gui",
+        "content_type": "interface",
+        "example_keys": ["spriteTypes", "guiTypes", "containerWindowType"],
+    },
+    "portraits/": {
+        "purpose": "Portrait assignment",
+        "description": "Links character IDs to portrait files",
+        "file_pattern": "*.txt",
+        "content_type": "portrait_definition",
+        "example_keys": ["character", "small", "large", "army", "navy"],
+    },
+    "music/": {
+        "purpose": "Music and sound files",
+        "description": "Background music, sound effects",
+        "file_pattern": "*.ogg, *.mp3",
+        "content_type": "audio",
+    },
+}
+
+
+def get_directory_info(path: str) -> dict | None:
+    """Get metadata about a HOI4 mod directory.
+    
+    Args:
+        path: Relative path like "events/" or "common/characters/"
+        
+    Returns:
+        Directory metadata dict or None if not found
+    """
+    normalized = path.rstrip("/") + "/"
+    
+    if normalized in DIRECTORY_SCHEMA:
+        return DIRECTORY_SCHEMA[normalized]
+    
+    for parent, data in DIRECTORY_SCHEMA.items():
+        if "subdirs" in data and normalized in data["subdirs"]:
+            return data["subdirs"][normalized]
+    
+    return None
+
+
+def get_all_known_directories() -> list[str]:
+    """Get all known HOI4 mod directory paths."""
+    dirs = list(DIRECTORY_SCHEMA.keys())
+    
+    for parent_data in DIRECTORY_SCHEMA.values():
+        if "subdirs" in parent_data:
+            dirs.extend(parent_data["subdirs"].keys())
+    
+    return sorted(dirs)

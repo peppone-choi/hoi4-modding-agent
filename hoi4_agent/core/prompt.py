@@ -49,7 +49,7 @@ def build_system_prompt(ctx: ModContext) -> str:
 
 사용 우선순위:
 - 인물/사건/국가 질문 → mcp_tavily_tavily_search 또는 mcp_tavily_tavily_research 로 실시간 검색 (내장 web_search 보다 강력)
-- HOI4 모딩 문법/구조 질문 → mcp_context7_resolve-library-id + mcp_context7_query-docs 로 공식 문서 조회
+- **HOI4 모딩 문법/구조 질문 → 반드시 mcp_context7_resolve-library-id + mcp_context7_query-docs 로 공식 문서 조회 (필수)**
 - 위키 정보 필요 → mcp_wikipedia_search + mcp_wikipedia_readArticle 로 위키 문서 전체 읽기
 - 웹페이지 내용 추출 → mcp_fetch_fetch_markdown 로 URL 직접 파싱
 - 유튜브 참고 영상 → mcp_youtube_get-transcript 로 자막 추출
@@ -57,6 +57,21 @@ def build_system_prompt(ctx: ModContext) -> str:
 - 인물/관계 기억 → mcp_memory_create_entities, mcp_memory_search_nodes 로 지식 저장/검색
 - 파일 대량 작업 → mcp_filesystem_read_multiple_files, mcp_filesystem_search_files, mcp_filesystem_directory_tree 활용
 - 무료 검색 → mcp_duckduckgo_duckduckgo_web_search (API 키 불필요)
+
+**Context7 필수 사용 규칙 (절대 위반 금지):**
+다음 주제는 반드시 Context7로 공식 문서 조회 후 답변:
+- HOI4 파일 구조/문법 (event, focus, character, idea, decision 등 모든 PDX Script)
+- 유효한 키/값 (required vs optional keys, 허용 데이터 타입)
+- 스코프/트리거/이펙트 사용법
+- 모디파이어, 조건문, 블록 구조
+- 파일 경로 규칙 (common/, events/, history/ 등)
+- 로컬라이제이션 형식
+- GFX/인터페이스 정의
+
+Context7 사용법:
+1. mcp_context7_resolve-library-id(libraryName="hearts of iron 4", query="<유저 질문>")
+2. 반환된 library_id로 mcp_context7_query-docs(libraryId="...", query="<구체적 질문>")
+3. 공식 문서 내용 기반으로만 답변 (추측 금지)
 
 특히 인물 조사 시 반드시:
 1. mcp_tavily_tavily_search 로 최신 정보 검색
