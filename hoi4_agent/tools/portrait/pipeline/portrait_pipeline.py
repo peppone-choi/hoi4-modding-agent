@@ -72,6 +72,9 @@ class PortraitPipeline:
         gemini_api_key: str | None = None,
         gemini_model: str = "gemini-3.1-flash-image-preview",
         style_prompt: str | None = None,
+        bg_color_top: str | None = None,
+        bg_color_bottom: str | None = None,
+        bg_gradient: bool | None = None,
     ) -> None:
         if mode not in ("gemini", "local"):
             raise ValueError(f"mode은 'gemini' 또는 'local'이어야 합니다: {mode!r}")
@@ -81,11 +84,14 @@ class PortraitPipeline:
         self.styler = TFRStyler()
         self.scanline = ScanlineOverlay()
 
-        # Gemini 설정
         self.gemini_api_key = gemini_api_key or os.environ.get("GEMINI_API_KEY", "")
         self.gemini_model = gemini_model
         self.style_prompt = style_prompt or DEFAULT_TFR_STYLE_PROMPT
         self._gemini_client = None
+        
+        self.bg_color_top = bg_color_top or os.environ.get("PORTRAIT_BG_TOP", "#bfdc7f")
+        self.bg_color_bottom = bg_color_bottom or os.environ.get("PORTRAIT_BG_BOTTOM", "#8b9d5f")
+        self.bg_gradient = bg_gradient if bg_gradient is not None else os.environ.get("PORTRAIT_BG_GRADIENT", "true").lower() in ("true", "1", "yes")
 
     @property
     def gemini_client(self):
@@ -189,7 +195,13 @@ class PortraitPipeline:
             str(nobg_path), "PNG"
         )
 
-        final = self._composite_on_bg(cropped, person_mask)
+        final = self._composite_on_bg(
+            cropped, 
+            person_mask, 
+            bg_color=self.bg_color_top,
+            bg_color_bottom=self.bg_color_bottom,
+            use_gradient=self.bg_gradient,
+        )
 
         # 4. 스캔라인 (고해상도)
         final = self.scanline.apply_scanlines(final, blend_mode="glow")
@@ -261,8 +273,13 @@ class PortraitPipeline:
         # 4. 스캔라인
         styled = self.scanline.apply_scanlines(styled, blend_mode="glow")
 
-        # 5. 보라 배경 합성
-        styled = self._composite_on_bg(styled, person_mask)
+        styled = self._composite_on_bg(
+            styled, 
+            person_mask,
+            bg_color=self.bg_color_top,
+            bg_color_bottom=self.bg_color_bottom,
+            use_gradient=self.bg_gradient,
+        )
 
         # 6. 저장
         output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -359,11 +376,23 @@ class PortraitPipeline:
         image: Image.Image,
         person_mask: np.ndarray,
         bg_color: str = BG_COLOR_HEX,
+        bg_color_bottom: str | None = None,
+        use_gradient: bool = False,
     ) -> Image.Image:
-        """인물을 보라색 배경 위에 합성한다."""
-        rgb = _hex_to_rgb(bg_color)
+        """인물을 배경 위에 합성한다 (단색 또는 그라데이션)."""
         img_arr = np.array(image.convert("RGB"), dtype=np.float64)
-        bg_arr = np.full_like(img_arr, rgb, dtype=np.float64)
+        height, width = img_arr.shape[:2]
+        
+        if use_gradient and bg_color_bottom:
+            rgb_top = np.array(_hex_to_rgb(bg_color), dtype=np.float64)
+            rgb_bottom = np.array(_hex_to_rgb(bg_color_bottom), dtype=np.float64)
+            
+            gradient = np.linspace(0, 1, height)[:, np.newaxis, np.newaxis]
+            bg_arr = rgb_top * (1 - gradient) + rgb_bottom * gradient
+            bg_arr = np.broadcast_to(bg_arr, (height, width, 3))
+        else:
+            rgb = _hex_to_rgb(bg_color)
+            bg_arr = np.full_like(img_arr, rgb, dtype=np.float64)
 
         mask_3d = person_mask[:, :, np.newaxis]
         result = bg_arr * (1 - mask_3d) + img_arr * mask_3d

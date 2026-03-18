@@ -449,6 +449,52 @@ pipeline = PortraitPipeline(
     mode="gemini",
     style_prompt="Make this look like a WW2-era oil painting portrait",
 )
+
+# 커스텀 배경색 (단색)
+pipeline = PortraitPipeline(
+    mode="gemini",
+    bg_color_top="#FF0000",  # 빨강
+    bg_gradient=False,
+)
+
+# 커스텀 배경색 (그라데이션)
+pipeline = PortraitPipeline(
+    mode="gemini",
+    bg_color_top="#bfdc7f",     # 위쪽 밝은 베이지
+    bg_color_bottom="#8b9d5f",  # 아래쪽 어두운 올리브
+    bg_gradient=True,
+)
+```
+
+### 배경색 커스터마이제이션
+
+포트레잇 배경색은 `.env` 파일 또는 코드에서 설정할 수 있습니다:
+
+**`.env` 설정:**
+
+```env
+PORTRAIT_BG_TOP=#bfdc7f       # 위쪽 배경색 (밝음)
+PORTRAIT_BG_BOTTOM=#8b9d5f    # 아래쪽 배경색 (어두움)
+PORTRAIT_BG_GRADIENT=true     # 그라데이션 활성화 (true/false)
+```
+
+**코드 설정:**
+
+```python
+pipeline = PortraitPipeline(
+    bg_color_top="#bfdc7f",
+    bg_color_bottom="#8b9d5f",
+    bg_gradient=True,
+)
+```
+
+**그라데이션 비활성화 (단색 배경):**
+
+```python
+pipeline = PortraitPipeline(
+    bg_color_top="#3D2B50",  # 단색 보라
+    bg_gradient=False,
+)
 ```
 
 ## 도구 목록 (16개 내장 + 35개 MCP)

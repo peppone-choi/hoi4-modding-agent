@@ -9,10 +9,21 @@ from pathlib import Path
 class ToolExecutor:
     """Executes tools based on Claude API tool calls."""
     
-    def __init__(self, mod_root: Path, gemini_key: str | None = None, mcp_manager=None):
+    def __init__(
+        self, 
+        mod_root: Path, 
+        gemini_key: str | None = None, 
+        mcp_manager=None,
+        portrait_bg_top: str = "#bfdc7f",
+        portrait_bg_bottom: str = "#8b9d5f",
+        portrait_bg_gradient: bool = True,
+    ):
         self.mod_root = mod_root
         self.gemini_key = gemini_key
         self.mcp_manager = mcp_manager
+        self.portrait_bg_top = portrait_bg_top
+        self.portrait_bg_bottom = portrait_bg_bottom
+        self.portrait_bg_gradient = portrait_bg_gradient
     
     def execute(self, name: str, inp: dict) -> str:
         """
@@ -306,6 +317,9 @@ class ToolExecutor:
                 mode=mode,
                 gemini_api_key=self.gemini_key,
                 style_prompt=inp.get("style_prompt"),
+                bg_color_top=self.portrait_bg_top,
+                bg_color_bottom=self.portrait_bg_bottom,
+                bg_gradient=self.portrait_bg_gradient,
             )
 
             success = pipeline.process_single(input_path, output_path)

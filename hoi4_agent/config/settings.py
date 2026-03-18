@@ -33,6 +33,11 @@ class Config:
     
     max_sessions: int = 50
     session_auto_save: bool = True
+    
+    # Portrait background configuration
+    portrait_bg_top: str = "#bfdc7f"
+    portrait_bg_bottom: str = "#8b9d5f"
+    portrait_bg_gradient: bool = True
 
 
 def load_config(mod_root: Path | str | None = None) -> Config:
@@ -67,6 +72,11 @@ def load_config(mod_root: Path | str | None = None) -> Config:
     google_api_key = os.getenv("GOOGLE_API_KEY")
     google_cx = os.getenv("GOOGLE_CX")
     
+    # Portrait background configuration
+    portrait_bg_top = os.getenv("PORTRAIT_BG_TOP", "#bfdc7f")
+    portrait_bg_bottom = os.getenv("PORTRAIT_BG_BOTTOM", "#8b9d5f")
+    portrait_bg_gradient = os.getenv("PORTRAIT_BG_GRADIENT", "true").lower() in ("true", "1", "yes")
+    
     if mod_root:
         mod_root = Path(mod_root)
     else:
@@ -89,6 +99,9 @@ def load_config(mod_root: Path | str | None = None) -> Config:
         google_cx=google_cx,
         mod_root=mod_root,
         db_path=db_path,
+        portrait_bg_top=portrait_bg_top,
+        portrait_bg_bottom=portrait_bg_bottom,
+        portrait_bg_gradient=portrait_bg_gradient,
     )
 
 

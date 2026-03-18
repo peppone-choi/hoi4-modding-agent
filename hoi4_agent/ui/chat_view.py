@@ -103,7 +103,14 @@ def _handle_input(ctx: ModContext, mod_root: Path, config):
         model = config.ollama_model
     
     mcp_mgr = st.session_state.get("mcp_manager")
-    executor = ToolExecutor(mod_root, gemini_key=config.gemini_key, mcp_manager=mcp_mgr)
+    executor = ToolExecutor(
+        mod_root, 
+        gemini_key=config.gemini_key, 
+        mcp_manager=mcp_mgr,
+        portrait_bg_top=config.portrait_bg_top,
+        portrait_bg_bottom=config.portrait_bg_bottom,
+        portrait_bg_gradient=config.portrait_bg_gradient,
+    )
     system_prompt = build_system_prompt(ctx)
 
     mcp_tools = mcp_mgr.discover_tools() if mcp_mgr and mcp_mgr.available else []

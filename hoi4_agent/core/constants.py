@@ -34,9 +34,9 @@ JAW_COLOR_HEX = "#706560"       # R112 G101 B96 - 아래 턱
 EYE_COLOR_HEX = "#898989"       # R137 G137 B137 - 흰 눈
 NOSE_COLOR_HEX = "#936258"      # R147 G98 B88 - 코
 
-# TFR 배경색 (보라/바이올렛)
-BG_COLOR_HEX = "#3D2B50"           # 어두운 보라 배경
-BG_COLOR_LIGHT_HEX = "#6B4C7A"     # 밝은 보라 (가장자리)
+# TFR 배경색 (환경변수에서 로드, 기본값은 여기 정의)
+BG_COLOR_HEX = "#3D2B50"           # 어두운 보라 배경 (기본값)
+BG_COLOR_LIGHT_HEX = "#6B4C7A"     # 밝은 보라 (가장자리, 기본값)
 
 # TFR 포트레잇 얼굴 기준 (842장 분석 평균)
 FACE_WIDTH_RATIO = 0.584            # 프레임 대비 얼굴 너비 58%
