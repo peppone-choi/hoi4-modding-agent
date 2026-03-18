@@ -1,5 +1,6 @@
 """
 Ollama client wrapper that mimics Anthropic's streaming API interface.
+Uses Ollama's OpenAI-compatible API for tool calling support.
 """
 import json
 from typing import Iterator
@@ -7,11 +8,37 @@ from typing import Iterator
 import requests
 
 
+def anthropic_to_openai_tools(anthropic_tools: list[dict]) -> list[dict]:
+    """Convert Anthropic tool schema to OpenAI function schema."""
+    openai_tools = []
+    
+    for tool in anthropic_tools:
+        openai_tool = {
+            "type": "function",
+            "function": {
+                "name": tool["name"],
+                "description": tool["description"],
+                "parameters": tool["input_schema"]
+            }
+        }
+        openai_tools.append(openai_tool)
+    
+    return openai_tools
+
+
 class OllamaStreamWrapper:
-    def __init__(self, response_iterator: Iterator[dict]):
+    def __init__(self, response_iterator: Iterator[dict], supports_tools: bool = False):
         self._iterator = response_iterator
         self._final_content = []
+        self._tool_calls = []
         self._done = False
+        self._supports_tools = supports_tools
+    
+    def __enter__(self):
+        return self
+    
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        return False
     
     def text_stream(self) -> Iterator[str]:
         for chunk in self._iterator:
@@ -19,25 +46,43 @@ class OllamaStreamWrapper:
                 self._done = True
                 break
             
-            content = chunk.get("message", {}).get("content", "")
+            message = chunk.get("message", {})
+            content = message.get("content", "")
+            
+            if self._supports_tools and "tool_calls" in message:
+                self._tool_calls.extend(message["tool_calls"])
+            
             if content:
                 self._final_content.append(content)
                 yield content
     
     def get_final_message(self):
-        class FinalMessage:
-            def __init__(self, content_text: str):
-                self.content = [type('Block', (), {'type': 'text', 'text': content_text})]
-                self.stop_reason = "end_turn"
+        class ToolUseBlock:
+            def __init__(self, tool_call):
+                self.type = "tool_use"
+                self.id = tool_call.get("id", "")
+                self.name = tool_call["function"]["name"]
+                self.input = json.loads(tool_call["function"]["arguments"])
         
-        return FinalMessage("".join(self._final_content))
+        class TextBlock:
+            def __init__(self, text: str):
+                self.type = "text"
+                self.text = text
+        
+        class FinalMessage:
+            def __init__(self, text: str, tool_calls: list):
+                self.content = []
+                if text:
+                    self.content.append(TextBlock(text))
+                for tc in tool_calls:
+                    self.content.append(ToolUseBlock(tc))
+                self.stop_reason = "end_turn" if not tool_calls else "tool_use"
+        
+        text = "".join(self._final_content)
+        return FinalMessage(text, self._tool_calls)
 
 
 class OllamaClient:
-    def __init__(self, base_url: str = "http://localhost:11434", model: str = "llama3.1:70b"):
-        self.base_url = base_url.rstrip("/")
-        self.model = model
-    
     class Messages:
         def __init__(self, client):
             self.client = client
@@ -49,10 +94,21 @@ class OllamaClient:
                 ollama_messages.append({"role": "system", "content": system})
             
             for msg in messages:
-                ollama_messages.append({
-                    "role": msg["role"],
-                    "content": msg["content"]
-                })
+                if isinstance(msg.get("content"), list):
+                    for block in msg["content"]:
+                        if block.get("type") == "tool_result":
+                            ollama_messages.append({
+                                "role": "tool",
+                                "tool_name": block.get("tool_name", ""),
+                                "content": block.get("content", "")
+                            })
+                elif msg.get("role") == "assistant" and "tool_calls" in msg:
+                    ollama_messages.append(msg)
+                else:
+                    ollama_messages.append({
+                        "role": msg["role"],
+                        "content": msg["content"]
+                    })
             
             payload = {
                 "model": self.client.model,
@@ -62,6 +118,9 @@ class OllamaClient:
                     "num_predict": max_tokens,
                 }
             }
+            
+            if tools:
+                payload["tools"] = anthropic_to_openai_tools(tools)
             
             response = requests.post(
                 f"{self.client.base_url}/api/chat",
@@ -76,7 +135,7 @@ class OllamaClient:
                     if line:
                         yield json.loads(line)
             
-            return OllamaStreamWrapper(response_iterator())
+            return OllamaStreamWrapper(response_iterator(), supports_tools=tools is not None)
     
     def __init__(self, base_url: str = "http://localhost:11434", model: str = "llama3.1:70b"):
         self.base_url = base_url.rstrip("/")

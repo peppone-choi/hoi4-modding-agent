@@ -97,22 +97,17 @@ def _handle_input(ctx: ModContext, mod_root: Path, config):
         import anthropic
         client = anthropic.Anthropic(api_key=config.anthropic_key)
         model = config.default_model
-        supports_tools = True
     else:
         from hoi4_agent.core.ollama_client import OllamaClient
         client = OllamaClient(base_url=config.ollama_base_url, model=config.ollama_model)
         model = config.ollama_model
-        supports_tools = False
     
     mcp_mgr = st.session_state.get("mcp_manager")
     executor = ToolExecutor(mod_root, gemini_key=config.gemini_key, mcp_manager=mcp_mgr)
     system_prompt = build_system_prompt(ctx)
 
-    if supports_tools:
-        mcp_tools = mcp_mgr.discover_tools() if mcp_mgr and mcp_mgr.available else []
-        all_tools = TOOLS + mcp_tools
-    else:
-        all_tools = None
+    mcp_tools = mcp_mgr.discover_tools() if mcp_mgr and mcp_mgr.available else []
+    all_tools = TOOLS + mcp_tools
 
     api_msgs = _get_api_messages()
     api_msgs.append({"role": "user", "content": prompt})
@@ -127,28 +122,16 @@ def _handle_input(ctx: ModContext, mod_root: Path, config):
             while rounds < config.max_tool_rounds:
                 rounds += 1
 
-                if supports_tools:
-                    with client.messages.stream(
-                        model=model,
-                        max_tokens=config.max_tokens,
-                        system=system_prompt,
-                        tools=all_tools,
-                        messages=api_msgs,
-                        tool_choice={"type": "any"} if rounds == 1 else {"type": "auto"},
-                    ) as stream:
-                        resp_text = st.write_stream(stream.text_stream)
-                        resp = stream.get_final_message()
-                else:
-                    with client.messages.stream(
-                        model=model,
-                        max_tokens=config.max_tokens,
-                        system=system_prompt,
-                        messages=api_msgs,
-                        tools=None,
-                        tool_choice=None,
-                    ) as stream:
-                        resp_text = st.write_stream(stream.text_stream)
-                        resp = stream.get_final_message()
+                with client.messages.stream(
+                    model=model,
+                    max_tokens=config.max_tokens,
+                    system=system_prompt,
+                    tools=all_tools,
+                    messages=api_msgs,
+                    tool_choice={"type": "any"} if rounds == 1 else {"type": "auto"},
+                ) as stream:
+                    resp_text = st.write_stream(stream.text_stream)
+                    resp = stream.get_final_message()
 
                 streamed = ""
                 if isinstance(resp_text, str):
