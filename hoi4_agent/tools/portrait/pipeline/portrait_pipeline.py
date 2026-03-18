@@ -45,9 +45,10 @@ DEFAULT_TFR_STYLE_PROMPT = (
     "1. Preserve every facial detail, skin texture, hair, and clothing exactly.\n"
     "2. Desaturate ~40%. Shift color temperature slightly warm.\n"
     "3. Lower brightness ~10%, increase contrast ~20% for a moody feel.\n"
-    "4. Replace the background with solid dark purple (#3D2B50).\n"
+    "4. IMPORTANT: Keep the background simple and uniform, or remove it entirely. "
+    "Do NOT add complex backgrounds, gradients, or textures — we will add the background later.\n"
     "5. Do NOT alter the person's face, expression, clothing, or pose.\n"
-    "6. Output a clean head-and-shoulders portrait with the purple background."
+    "6. Output a clean head-and-shoulders portrait, focusing only on the person."
 )
 
 
