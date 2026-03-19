@@ -54,9 +54,11 @@ DEFAULT_TFR_STYLE_PROMPT = (
     "- DO NOT redraw any pixel\n"
     "- DO NOT apply artistic filters or brush strokes\n"
     "- DO NOT change facial features, expression, clothing, or pose\n"
-    "- DO NOT add HOI4 game style, painted look, or any illustration effect\n"
-    "- DO NOT add vignette, borders, or text overlays\n\n"
-    "Output: head-and-shoulders crop, real photo, color-graded only."
+    "- DO NOT add game art style, painted look, or any illustration effect\n"
+    "- DO NOT add ANY text, letters, names, labels, watermarks, or captions\n"
+    "- DO NOT add vignette or borders\n"
+    "- The output must contain ONLY the person's face and body. ZERO text anywhere.\n\n"
+    "Output: head-and-shoulders crop, real photo, color-graded only. NO TEXT."
 )
 
 

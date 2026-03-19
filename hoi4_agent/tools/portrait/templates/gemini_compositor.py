@@ -55,8 +55,9 @@ COMPOSITE_PROMPT_TEMPLATE = (
     "The background should be plain/uniform color. "
     "ABSOLUTE RULE: Output must be a REAL PHOTOGRAPH. "
     "DO NOT redraw, repaint, illustrate, or stylize. "
-    "DO NOT apply HOI4 game style, painted look, oil painting, or any artistic filter. "
-    "Real fabric texture, natural lighting, camera grain. Zero illustration."
+    "DO NOT apply game art style, painted look, oil painting, or any artistic filter. "
+    "Real fabric texture, natural lighting, camera grain. Zero illustration. "
+    "DO NOT add ANY text, letters, names, labels, or captions to the image. Face and body ONLY."
 )
 
 
