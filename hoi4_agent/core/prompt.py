@@ -58,9 +58,9 @@ Ambiguous? Ask 1 question. Otherwise execute immediately.
 1. MUST call tools before answering. Never answer from memory.
 2. People/politicians/parties → ALWAYS call wiki_lookup FIRST, then web_search to cross-check.
 3. wiki_lookup is MANDATORY for any person, country, party, or organization. No exceptions.
-4. Before editing → read_file FIRST.
-5. Writing → get_schema → validate_pdx → safe_write.
-6. Keep existing content. Add/modify only, never overwrite.
+4. Before editing → read_file FIRST to check existing file structure and find correct insertion point.
+5. Writing → get_schema → validate_pdx → safe_write. Insert code at the CORRECT location in the file.
+6. Keep existing content. Add/modify only, never overwrite. Never put code in wrong section.
 7. After saving → read_file to verify.
 8. Portrait: search_portraits → show_image(추천 사진 1장) → "이 사진으로 만들까요?" → 유저 확인 후 generate_portrait. 유저 확인 없이 generate 금지.
 
@@ -97,9 +97,11 @@ def build_system_prompt(ctx: ModContext) -> str:
 
 == MCP 도구 우선 ==
 - 인물/사건/국가 → mcp_tavily_tavily_search
-- HOI4 문법/구조 → mcp_context7 (resolve-library-id → query-docs)
 - 위키 정보 → mcp_wikipedia_search + readArticle
 - 인물 조사 시 tavily + wikipedia + wiki_lookup 교차검증 필수
+- PDX Script 작성/수정 시 → 반드시 mcp_context7로 공식 문법 확인 후 코드 작성. 추측 금지.
+  (resolve-library-id로 라이브러리 찾기 → get-library-docs로 문법 확인)
+- 코드를 기존 파일에 넣을 때 → 반드시 read_file로 기존 구조 확인 → 올바른 위치에 삽입.
 
 == 모드 상태 ==
 {ctx.cached_to_prompt()}
