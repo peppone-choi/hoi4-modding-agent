@@ -150,6 +150,15 @@ class GeminiStreamWrapper:
         return FinalMessage(text, self._tool_calls)
 
 
+GEMINI_FALLBACK_CHAIN = [
+    "gemini-3-flash-preview",
+    "gemini-3.1-flash-lite-preview",
+    "gemini-2.5-flash",
+    "gemini-2.5-flash-lite",
+    "gemini-2-flash-lite",
+]
+
+
 class GeminiClient:
     class Messages:
         def __init__(self, client):
@@ -173,13 +182,31 @@ class GeminiClient:
                     disable=True
                 )
 
-            response_stream = self.client._genai.models.generate_content_stream(
-                model=self.client.model,
-                contents=contents,
-                config=config,
-            )
+            models_to_try = [self.client.model]
+            for fb in GEMINI_FALLBACK_CHAIN:
+                if fb != self.client.model and fb not in models_to_try:
+                    models_to_try.append(fb)
 
-            return GeminiStreamWrapper(response_stream, supports_tools=tools is not None)
+            last_error = None
+            for try_model in models_to_try:
+                try:
+                    response_stream = self.client._genai.models.generate_content_stream(
+                        model=try_model,
+                        contents=contents,
+                        config=config,
+                    )
+                    if try_model != self.client.model:
+                        print(f"[GEMINI] 429 폴백: {self.client.model} → {try_model}")
+                    return GeminiStreamWrapper(response_stream, supports_tools=tools is not None)
+                except Exception as e:
+                    err_str = str(e)
+                    if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str:
+                        print(f"[GEMINI] {try_model} TPM 초과, 다음 모델 시도...")
+                        last_error = e
+                        continue
+                    raise
+
+            raise last_error or RuntimeError("All Gemini models exhausted (429)")
 
     def __init__(self, api_key: str, model: str = "gemini-3-flash-preview"):
         self._genai = genai.Client(api_key=api_key)

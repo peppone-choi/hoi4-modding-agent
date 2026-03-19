@@ -190,9 +190,16 @@ class OpenAIStreamWrapper:
         return FinalMessage(text, completed_calls)
 
 
-class OpenAIClient:
-    """OpenAI client that mimics Anthropic's client.messages.stream() interface."""
+OPENAI_FALLBACK_CHAIN = [
+    "gpt-4o-mini",
+    "gpt-4.1-nano",
+    "gpt-4.1-mini",
+    "gpt-4o",
+    "gpt-4.1",
+]
 
+
+class OpenAIClient:
     class Messages:
         def __init__(self, client):
             self.client = client
@@ -202,20 +209,38 @@ class OpenAIClient:
                    tool_choice: dict | None = None):
             openai_msgs = _build_openai_messages(system, messages)
 
-            kwargs = {
-                "model": self.client.model,
+            base_kwargs = {
                 "messages": openai_msgs,
                 "max_tokens": max_tokens,
                 "stream": True,
             }
-
             if tools:
-                kwargs["tools"] = anthropic_to_openai_tools(tools)
-                kwargs["tool_choice"] = "auto"
+                base_kwargs["tools"] = anthropic_to_openai_tools(tools)
+                base_kwargs["tool_choice"] = "auto"
 
-            response_stream = self.client._openai.chat.completions.create(**kwargs)
+            models_to_try = [self.client.model]
+            for fb in OPENAI_FALLBACK_CHAIN:
+                if fb != self.client.model and fb not in models_to_try:
+                    models_to_try.append(fb)
 
-            return OpenAIStreamWrapper(response_stream, supports_tools=tools is not None)
+            last_error = None
+            for try_model in models_to_try:
+                try:
+                    response_stream = self.client._openai.chat.completions.create(
+                        model=try_model, **base_kwargs
+                    )
+                    if try_model != self.client.model:
+                        print(f"[OPENAI] 429 폴백: {self.client.model} → {try_model}")
+                    return OpenAIStreamWrapper(response_stream, supports_tools=tools is not None)
+                except Exception as e:
+                    err_str = str(e)
+                    if "429" in err_str or "rate_limit" in err_str.lower():
+                        print(f"[OPENAI] {try_model} rate limit, 다음 모델 시도...")
+                        last_error = e
+                        continue
+                    raise
+
+            raise last_error or RuntimeError("All OpenAI models exhausted (429)")
 
     def __init__(self, api_key: str, model: str = "gpt-4o-mini"):
         self._openai = OpenAI(api_key=api_key)
