@@ -15,7 +15,8 @@ def main(mod_path: str, port: int):
 
     MOD_PATH: Path to your HOI4 mod directory (default: current directory)
     """
-    load_dotenv()
+    agent_root = Path(__file__).resolve().parent.parent
+    load_dotenv(agent_root / ".env")
 
     mod_path_abs = Path(mod_path).resolve()
     
@@ -44,6 +45,12 @@ def main(mod_path: str, port: int):
         model = os.getenv("OLLAMA_MODEL", "llama3.1:70b")
         base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
         click.echo(f"🦙 AI: Ollama ({model}) · {base_url} · 무료")
+    elif ai_provider == "gemini":
+        model = os.getenv("GEMINI_MODEL", "gemini-3-flash-preview")
+        click.echo(f"💎 AI: Gemini ({model})")
+    elif ai_provider == "openai":
+        model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+        click.echo(f"🧠 AI: GPT ({model})")
     else:
         model = os.getenv("CLAUDE_MODEL", "claude-sonnet-4-6")
         click.echo(f"🤖 AI: Claude ({model}) · 유료")

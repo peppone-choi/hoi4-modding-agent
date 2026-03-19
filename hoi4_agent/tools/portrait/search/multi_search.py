@@ -40,7 +40,7 @@ class MultiSourceSearch:
         cache_dir: Path | None = None,
         max_per_source: int = 10,
         min_size: int = 200,
-        request_delay: float = 0.5,
+        request_delay: float = 1.5,
     ):
         self.cache_dir = cache_dir or Path("/tmp/portrait_search_cache")
         self.cache_dir.mkdir(parents=True, exist_ok=True)
@@ -49,11 +49,7 @@ class MultiSourceSearch:
         self.request_delay = request_delay
         self.session = requests.Session()
         self.session.headers.update({
-            "User-Agent": (
-                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/131.0.0.0 Safari/537.36"
-            ),
+            "User-Agent": "HOI4ModdingAgent/1.0 (https://github.com; portrait-search) Python/3.11",
             "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
         })
 

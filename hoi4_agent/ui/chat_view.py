@@ -6,7 +6,7 @@ from pathlib import Path
 import streamlit as st
 
 from hoi4_agent.core.orchestration import execute_sonnet_parallel
-from hoi4_agent.core.prompt import TOOLS, build_system_prompt
+from hoi4_agent.core.prompt import TOOLS, build_system_prompt, build_system_prompt_simple
 from hoi4_agent.core.scanner import ModContext
 from hoi4_agent.core.task_decomposer import TaskDecomposer, ExecutionStrategy
 from hoi4_agent.tools.executor import ToolExecutor
@@ -62,14 +62,20 @@ def _serialize_content(content) -> list[dict]:
     result = []
     for blk in content:
         if blk.type == "text":
-            result.append({"type": "text", "text": blk.text})
+            entry = {"type": "text", "text": blk.text}
+            if hasattr(blk, "thought_signature") and blk.thought_signature:
+                entry["thought_signature"] = blk.thought_signature
+            result.append(entry)
         elif blk.type == "tool_use":
-            result.append({
+            entry = {
                 "type": "tool_use",
                 "id": blk.id,
                 "name": blk.name,
                 "input": blk.input,
-            })
+            }
+            if hasattr(blk, "thought_signature") and blk.thought_signature:
+                entry["thought_signature"] = blk.thought_signature
+            result.append(entry)
         elif hasattr(blk, "model_dump"):
             result.append(blk.model_dump())
     return result
@@ -126,6 +132,12 @@ def _select_model(config, prompt: str) -> str:
     '자동' 모드일 때만 TaskDecomposer가 Haiku/Sonnet 결정.
     Opus 에스컬레이션이 활성화되어 있으면 무조건 Opus.
     """
+    if config.ai_provider == "ollama":
+        return config.ollama_model
+    if config.ai_provider == "gemini":
+        return config.gemini_model
+    if config.ai_provider == "openai":
+        return config.openai_model
     if config.ai_provider != "anthropic":
         return config.ollama_model
     
@@ -169,6 +181,12 @@ def _handle_input(ctx: ModContext, mod_root: Path, config):
     if config.ai_provider == "anthropic":
         import anthropic
         client = anthropic.Anthropic(api_key=config.anthropic_key)
+    elif config.ai_provider == "gemini":
+        from hoi4_agent.core.gemini_client import GeminiClient
+        client = GeminiClient(api_key=config.gemini_key, model=config.gemini_model)
+    elif config.ai_provider == "openai":
+        from hoi4_agent.core.openai_client import OpenAIClient
+        client = OpenAIClient(api_key=config.openai_key, model=config.openai_model)
     else:
         from hoi4_agent.core.ollama_client import OllamaClient
         client = OllamaClient(base_url=config.ollama_base_url, model=config.ollama_model)
@@ -202,7 +220,10 @@ def _handle_input(ctx: ModContext, mod_root: Path, config):
         portrait_bg_gradient=config.portrait_bg_gradient,
         portrait_scanlines_enabled=config.portrait_scanlines_enabled,
     )
-    system_prompt = build_system_prompt(ctx)
+    if config.use_simple_prompt:
+        system_prompt = build_system_prompt_simple(ctx)
+    else:
+        system_prompt = build_system_prompt(ctx)
 
     mcp_tools = mcp_mgr.discover_tools() if mcp_mgr and mcp_mgr.available else []
     all_tools = TOOLS + mcp_tools
@@ -318,6 +339,7 @@ def _handle_input(ctx: ModContext, mod_root: Path, config):
                             {
                                 "type": "tool_result",
                                 "tool_use_id": blk.id,
+                                "tool_name": blk.name,
                                 "content": result[:10000],
                             }
                         )

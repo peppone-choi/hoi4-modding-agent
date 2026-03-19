@@ -119,6 +119,12 @@ def _render_model_settings(config):
     if config.ai_provider == "ollama":
         st.success(f"🦙 **Ollama** · `{config.ollama_model}` · 무료")
         st.caption(f"서버: {config.ollama_base_url}")
+    elif config.ai_provider == "gemini":
+        st.success(f"💎 **Gemini** · `{config.gemini_model}`")
+        st.caption("💰 Flash: $0.50/1M input · $3.00/1M output")
+    elif config.ai_provider == "openai":
+        st.success(f"🧠 **GPT** · `{config.openai_model}`")
+        st.caption("💰 가격은 모델에 따라 다름")
     elif config.ai_provider == "anthropic":
         st.warning(f"🤖 **Claude** · `{config.default_model}` · 유료")
         model_options = {

@@ -25,7 +25,8 @@ def _resolve_mod_root() -> Path:
 
 
 def main():
-    load_dotenv()
+    agent_root = Path(__file__).resolve().parent.parent.parent
+    load_dotenv(agent_root / ".env")
 
     st.set_page_config(
         page_title="HOI4 Modding Agent",
@@ -71,6 +72,10 @@ def main():
 
     if config.ai_provider == "ollama":
         provider_label = f"🦙 Ollama ({config.ollama_model}) · 무료"
+    elif config.ai_provider == "gemini":
+        provider_label = f"💎 Gemini ({config.gemini_model})"
+    elif config.ai_provider == "openai":
+        provider_label = f"🧠 GPT ({config.openai_model})"
     else:
         provider_label = f"🤖 Claude ({config.default_model})"
 

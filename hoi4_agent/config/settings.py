@@ -18,8 +18,14 @@ class Config:
     
     ollama_base_url: str = "http://localhost:11434"
     ollama_model: str = "llama3.1:70b"
+    use_simple_prompt: bool = False
     
     gemini_key: str | None = None
+    gemini_model: str = "gemini-3-flash-preview"
+    
+    openai_key: str | None = None
+    openai_model: str = "gpt-4o-mini"
+    
     tavily_key: str | None = None
     google_api_key: str | None = None
     google_cx: str | None = None
@@ -72,11 +78,26 @@ def load_config(mod_root: Path | str | None = None) -> Config:
             "ANTHROPIC_API_KEY is required when AI_PROVIDER=anthropic. "
             "Set it in .env or environment variables."
         )
+    if ai_provider == "gemini" and not os.getenv("GEMINI_API_KEY"):
+        raise ValueError(
+            "GEMINI_API_KEY is required when AI_PROVIDER=gemini. "
+            "Set it in .env or environment variables."
+        )
+    if ai_provider == "openai" and not os.getenv("OPENAI_API_KEY"):
+        raise ValueError(
+            "OPENAI_API_KEY is required when AI_PROVIDER=openai. "
+            "Set it in .env or environment variables."
+        )
     
     ollama_base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
     ollama_model = os.getenv("OLLAMA_MODEL", "llama3.1:70b")
+    use_simple_prompt = ai_provider in ("ollama",)
     
     gemini_key = os.getenv("GEMINI_API_KEY")
+    gemini_model = os.getenv("GEMINI_MODEL", "gemini-3-flash-preview")
+    
+    openai_key = os.getenv("OPENAI_API_KEY")
+    openai_model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
     tavily_key = os.getenv("TAVILY_API_KEY")
     google_api_key = os.getenv("GOOGLE_API_KEY")
     google_cx = os.getenv("GOOGLE_CX")
@@ -105,7 +126,11 @@ def load_config(mod_root: Path | str | None = None) -> Config:
         anthropic_key=anthropic_key if anthropic_key else None,
         ollama_base_url=ollama_base_url,
         ollama_model=ollama_model,
+        use_simple_prompt=use_simple_prompt,
         gemini_key=gemini_key,
+        gemini_model=gemini_model,
+        openai_key=openai_key,
+        openai_model=openai_model,
         tavily_key=tavily_key,
         google_api_key=google_api_key,
         google_cx=google_cx,

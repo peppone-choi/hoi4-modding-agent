@@ -9,6 +9,8 @@ setup(
     packages=find_packages(exclude=["tests*", "docs*", "examples*"]),
     install_requires=[
         "anthropic>=0.40.0",
+        "google-genai>=1.0.0",
+        "openai>=1.0.0",
         "streamlit>=1.31.0",
         "python-dotenv>=1.0.0",
         "requests>=2.31.0",

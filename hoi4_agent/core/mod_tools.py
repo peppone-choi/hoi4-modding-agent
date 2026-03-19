@@ -300,7 +300,8 @@ def find_entity(mod_root: Path, entity_name: str, entity_type: str = "") -> str:
     """모드 내에서 캐릭터/이벤트/포커스를 이름/ID로 찾는다."""
     results: list[dict[str, str]] = []
     sl = entity_name.lower()
-    if not entity_type or entity_type == "character":
+    search_all = not entity_type or entity_type in ("all", "")
+    if search_all or entity_type == "character":
         d = mod_root / "common" / "characters"
         if d.is_dir():
             for f in d.glob("*.txt"):
@@ -312,7 +313,7 @@ def find_entity(mod_root: Path, entity_name: str, entity_type: str = "") -> str:
                         blk = t[m.start():m.start() + 500]
                         im = re.search(r"ideology\s*=\s*(\w+)", blk)
                         results.append({"type": "character", "id": cid, "file": str(f.relative_to(mod_root)), "ideology": im.group(1) if im else ""})
-    if not entity_type or entity_type == "event":
+    if search_all or entity_type == "event":
         d = mod_root / "events"
         if d.is_dir():
             for f in d.glob("*.txt"):
@@ -320,7 +321,7 @@ def find_entity(mod_root: Path, entity_name: str, entity_type: str = "") -> str:
                 for m in re.finditer(r"id\s*=\s*([\w.]+)", t):
                     if sl in m.group(1).lower():
                         results.append({"type": "event", "id": m.group(1), "file": str(f.relative_to(mod_root))})
-    if not entity_type or entity_type == "focus":
+    if search_all or entity_type == "focus":
         d = mod_root / "common" / "national_focus"
         if d.is_dir():
             for f in d.glob("*.txt"):

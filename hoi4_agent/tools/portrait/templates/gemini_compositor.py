@@ -49,13 +49,14 @@ UNIFORM_PROMPTS: dict[str, dict[str, str]] = {
 
 # 합성 기본 프롬프트 템플릿
 COMPOSITE_PROMPT_TEMPLATE = (
-    "Edit this portrait photo: dress this person in {uniform_description}. "
-    "Keep the person's face, expression, skin texture, and skin tone exactly the same. "
+    "Edit this REAL photograph: dress this person in {uniform_description}. "
+    "Keep the person's face, expression, skin texture, and skin tone EXACTLY the same. "
     "Only change the clothing and add appropriate headgear if needed. "
-    "The background should be plain/transparent. "
-    "CRITICAL: The result MUST look like a real photograph, NOT a painting or illustration. "
-    "Preserve photographic realism — real fabric texture, natural lighting, no brush strokes, "
-    "no artistic stylization, no cartoon or illustrated look."
+    "The background should be plain/uniform color. "
+    "ABSOLUTE RULE: Output must be a REAL PHOTOGRAPH. "
+    "DO NOT redraw, repaint, illustrate, or stylize. "
+    "DO NOT apply HOI4 game style, painted look, oil painting, or any artistic filter. "
+    "Real fabric texture, natural lighting, camera grain. Zero illustration."
 )
 
 
