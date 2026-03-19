@@ -4,6 +4,7 @@ import sys
 from pathlib import Path
 
 import click
+from dotenv import load_dotenv
 
 
 @click.command()
@@ -14,6 +15,8 @@ def main(mod_path: str, port: int):
 
     MOD_PATH: Path to your HOI4 mod directory (default: current directory)
     """
+    load_dotenv()
+
     mod_path_abs = Path(mod_path).resolve()
     
     if mod_path_abs.name == "hoi4-modding-agent":
@@ -35,6 +38,15 @@ def main(mod_path: str, port: int):
             os.environ["MOD_ROOT"] = str(mod_path_abs)
     else:
         os.environ["MOD_ROOT"] = str(mod_path_abs)
+
+    ai_provider = os.getenv("AI_PROVIDER", "anthropic").lower()
+    if ai_provider == "ollama":
+        model = os.getenv("OLLAMA_MODEL", "llama3.1:70b")
+        base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+        click.echo(f"🦙 AI: Ollama ({model}) · {base_url} · 무료")
+    else:
+        model = os.getenv("CLAUDE_MODEL", "claude-sonnet-4-6")
+        click.echo(f"🤖 AI: Claude ({model}) · 유료")
 
     sys.argv = [
         "streamlit",

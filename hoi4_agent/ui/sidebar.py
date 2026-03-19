@@ -116,7 +116,11 @@ def _render_session_search():
 def _render_model_settings(config):
     st.header("⚙️ AI 모델 설정")
     
-    if config.ai_provider == "anthropic":
+    if config.ai_provider == "ollama":
+        st.success(f"🦙 **Ollama** · `{config.ollama_model}` · 무료")
+        st.caption(f"서버: {config.ollama_base_url}")
+    elif config.ai_provider == "anthropic":
+        st.warning(f"🤖 **Claude** · `{config.default_model}` · 유료")
         model_options = {
             "자동 (Sonnet 기본) - 권장": "auto",
             "절약 모드 (Haiku) - 빠르고 저렴": "haiku", 
@@ -142,9 +146,6 @@ def _render_model_settings(config):
             st.caption("💰 비용: 고가 (5배)")
         else:
             st.caption("💰 자동: 작업에 따라 Haiku/Sonnet/Opus 선택")
-            
-    elif config.ai_provider == "ollama":
-        st.caption(f"현재: {config.ollama_model} (무료)")
 
 
 def _render_mod_info(ctx: ModContext, mod_root):
