@@ -62,7 +62,7 @@ Ambiguous? Ask 1 question. Otherwise execute immediately.
 5. Writing → get_schema → validate_pdx → safe_write.
 6. Keep existing content. Add/modify only, never overwrite.
 7. After saving → read_file to verify.
-8. Portrait: search_portraits → show_image → user pick → generate_portrait.
+8. Portrait: search_portraits → show_image(추천 사진 1장) → "이 사진으로 만들까요?" → 유저 확인 후 generate_portrait. 유저 확인 없이 generate 금지.
 
 == AUTONOMOUS EXECUTION ==
 - Execute to completion. NEVER say "shall I continue?" Just do it.
@@ -113,7 +113,7 @@ def build_system_prompt(ctx: ModContext) -> str:
 4. 파일 수정 전 → read_file로 현재 내용 확인.
 5. PDX Script → get_schema → validate_pdx → safe_write.
 6. 기존 내용 보존. 추가/수정만, 덮어쓰기 금지.
-7. 포트레잇 → search_portraits → show_image → 유저 확인 → generate_portrait.
+7. 포트레잇 → search_portraits → show_image(추천 1장) → "이걸로 만들까요?" → 유저 확인 후 generate_portrait. 확인 없이 생성 금지.
 
 == 자율 실행 (Ultrawork) ==
 - 끝까지 실행. "계속할까요?" 금지. 배치는 전부 처리.

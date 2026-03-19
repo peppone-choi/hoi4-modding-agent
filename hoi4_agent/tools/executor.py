@@ -335,7 +335,16 @@ class ToolExecutor:
                 person_name=inp["person_name"], title=inp.get("title"),
                 country_tag=inp.get("country_tag"), max_results=inp.get("max_results", 8),
             )
-            return json.dumps([str(p) for p in dl], ensure_ascii=False)
+            paths = [str(p) for p in dl]
+            if not paths:
+                return "[검색 결과 없음] 사진을 찾지 못했습니다."
+            result = f"[검색 완료] {len(paths)}장 발견.\n"
+            result += f"추천 사진: {paths[0]}\n"
+            result += "이 사진으로 포트레잇을 생성할까요? 다른 사진을 원하면 번호를 알려주세요.\n"
+            for i, p in enumerate(paths):
+                result += f"  {i+1}) {p}\n"
+            result += "\n[중요] show_image로 추천 사진을 유저에게 보여준 후 확인받으세요."
+            return result
         except ImportError:
             return "[오류] portrait_generator 모듈 없음"
         except Exception as e:
