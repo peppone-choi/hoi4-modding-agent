@@ -352,6 +352,9 @@ def _handle_input(ctx: ModContext, mod_root: Path, config):
 
                 if resp.stop_reason == "tool_use" and tool_results:
                     api_msgs.append({"role": "user", "content": tool_results})
+                    if rounds >= config.max_tool_rounds:
+                        st.warning(f"⚠️ 도구 호출 {rounds}회 도달. 자동 이어서 진행합니다...")
+                        config.max_tool_rounds += 50
                 else:
                     break
             

@@ -101,12 +101,14 @@ class GeminiStreamWrapper:
         for chunk in self._stream:
             if not chunk.candidates:
                 continue
-            for part in chunk.candidates[0].content.parts:
+            parts = chunk.candidates[0].content.parts if chunk.candidates[0].content else []
+            for part in (parts or []):
                 if part.text:
                     self._final_content.append(part.text)
                     yield part.text
                 elif part.function_call:
                     fc = part.function_call
+                    print(f"[GEMINI] 도구 호출 감지: {fc.name}({dict(fc.args) if fc.args else {}})")
                     sig = None
                     if hasattr(part, 'thought_signature') and part.thought_signature:
                         sig = base64.b64encode(part.thought_signature).decode('utf-8')
@@ -123,6 +125,7 @@ class GeminiStreamWrapper:
         if not self._consumed:
             for _ in self.text_stream():
                 pass
+        print(f"[GEMINI] get_final_message() — tool_calls: {len(self._tool_calls)}, text_len: {sum(len(t) for t in self._final_content)}")
 
         class ToolUseBlock:
             def __init__(self, tool_call):
@@ -151,9 +154,10 @@ class GeminiStreamWrapper:
 
 
 GEMINI_FALLBACK_CHAIN = [
+    "gemini-2.5-pro",
     "gemini-3-flash-preview",
-    "gemini-3.1-flash-lite-preview",
     "gemini-2.5-flash",
+    "gemini-3.1-flash-lite-preview",
     "gemini-2.5-flash-lite",
     "gemini-2-flash-lite",
 ]
@@ -178,9 +182,16 @@ class GeminiClient:
             if tools:
                 gemini_tools = anthropic_to_gemini_tools(tools)
                 config.tools = gemini_tools
+                config.tool_config = types.ToolConfig(
+                    function_calling_config=types.FunctionCallingConfig(mode="ANY")
+                )
                 config.automatic_function_calling = types.AutomaticFunctionCallingConfig(
                     disable=True
                 )
+                tool_names = [t["name"] for t in tools]
+                print(f"[GEMINI] {len(tools)}개 도구 전달 (mode=ANY 강제): {tool_names[:10]}")
+            else:
+                print("[GEMINI] 도구 없이 호출됨!")
 
             models_to_try = [self.client.model]
             for fb in GEMINI_FALLBACK_CHAIN:
@@ -208,7 +219,7 @@ class GeminiClient:
 
             raise last_error or RuntimeError("All Gemini models exhausted (429)")
 
-    def __init__(self, api_key: str, model: str = "gemini-3-flash-preview"):
+    def __init__(self, api_key: str, model: str = "gemini-2.5-pro"):
         self._genai = genai.Client(api_key=api_key)
         self.model = model
         self.messages = self.Messages(self)
