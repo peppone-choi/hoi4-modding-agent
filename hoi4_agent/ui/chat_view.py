@@ -344,7 +344,6 @@ def _handle_input(ctx: ModContext, mod_root: Path, config):
                             {
                                 "type": "tool_result",
                                 "tool_use_id": blk.id,
-                                "tool_name": blk.name,
                                 "content": result[:10000],
                             }
                         )

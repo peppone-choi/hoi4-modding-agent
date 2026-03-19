@@ -43,6 +43,7 @@ def _build_gemini_messages(system: str | list, messages: list) -> tuple[str, lis
         system_text = system or ""
 
     contents = []
+    tool_id_to_name: dict[str, str] = {}
     for msg in messages:
         role = "user" if msg["role"] == "user" else "model"
 
@@ -56,6 +57,7 @@ def _build_gemini_messages(system: str | list, messages: list) -> tuple[str, lis
                         part.thought_signature = base64.b64decode(sig)
                     parts.append(part)
                 elif block.get("type") == "tool_use":
+                    tool_id_to_name[block.get("id", "")] = block["name"]
                     part = types.Part.from_function_call(
                         name=block["name"],
                         args=block["input"],
@@ -67,8 +69,11 @@ def _build_gemini_messages(system: str | list, messages: list) -> tuple[str, lis
                         part.thought_signature = b'skip_thought_signature_validator'
                     parts.append(part)
                 elif block.get("type") == "tool_result":
+                    resolved_name = tool_id_to_name.get(
+                        block.get("tool_use_id", ""), "unknown"
+                    )
                     parts.append(types.Part.from_function_response(
-                        name=block.get("tool_name", "unknown"),
+                        name=resolved_name,
                         response={"result": block.get("content", "")},
                     ))
             if parts:
