@@ -80,8 +80,40 @@ def _core_prompt(ctx: ModContext) -> str:
 - "완료"는 모든 도구 성공 + read_file 검증 시에만.
 - 검색 실패 → 추측 금지. 솔직히 보고.
 
+== HOI4 캐릭터 시스템 (1.5+ 현대 방식, 필수) ==
+캐릭터는 반드시 common/characters/ 파일에 정의하고, history에서 recruit_character로 참조한다.
+create_country_leader를 history 파일에 직접 넣는 것은 1.5 이전 구식 방식이며 절대 사용 금지.
+
+올바른 방식 (2단계):
+  1단계 — common/characters/TAG_characters.txt에 캐릭터 정의:
+    characters = {{
+        TAG_person_name = {{
+            name = "Person Name"
+            portraits = {{
+                civilian = {{ large = "GFX_portrait_TAG_person_name" }}
+            }}
+            country_leader = {{
+                ideology = ideology_name
+                traits = {{ trait_name }}
+            }}
+        }}
+    }}
+  2단계 — history/countries/TAG - Country Name.txt에서 recruit_character로 참조:
+    recruit_character = TAG_person_name
+
+잘못된 방식 (절대 금지):
+  ✗ history 파일에 create_country_leader = {{ ... }} 직접 삽입
+  ✗ history 파일에 캐릭터 정의 블록 직접 삽입
+  → 이 방식은 게임이 무시하거나 오류를 발생시킨다.
+
+== 작업 완료 보고 (필수) ==
+모든 도구 작업이 끝나면, 반드시 텍스트로 결과를 요약 보고해야 한다.
+도구만 호출하고 텍스트 응답 없이 끝내는 것은 금지.
+마지막 응답은 반드시 도구 호출 없이 텍스트만으로 결과를 보고해라.
+보고 형식: 수행한 작업 + 변경된 파일 목록 + 검증 결과.
+
 == 워크플로우 ==
-인물 추가: wiki_lookup + web_search → find_entity(중복) → country_details → read_file(구조확인) → get_schema → validate_pdx → safe_write → 로컬 추가.
+인물 추가: wiki_lookup + web_search → find_entity(중복) → country_details → read_file(구조확인) → get_schema → validate_pdx → safe_write(common/characters/) → 히스토리에 recruit_character 추가 → 로컬 추가.
 리더 업데이트: wiki_lookup + web_search(최신) → country_details → read_file → safe_write.
 변경 후 도구+결과 요약. 모르면 질문."""
 

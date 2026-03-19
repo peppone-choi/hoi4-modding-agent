@@ -342,7 +342,7 @@ class ModValidator:
 
     def validate_parties(self) -> ValidationResult:
         """정당 로컬라이제이션 교차 검증."""
-        from tools.shared.party_validator import PartyValidator
+        from hoi4_agent.core.party_validator import PartyValidator
 
         pv = PartyValidator(self.mod_root)
         result, report = pv.validate_all()

@@ -14,11 +14,11 @@ from typing import Any, Callable
 
 from loguru import logger
 
-from tools.shared.constants import MOD_ROOT, WIKI_MAX_CONCURRENT
-from tools.shared.hoi4_parser import CharacterParser
-from tools.shared.localisation_generator import LocalisationGenerator
-from tools.wiki_updater.cache.sqlite_cache import WikiCache
-from tools.wiki_updater.core.data_extractor import DataExtractor, ExtractedPersonData
+from hoi4_agent.core.constants import MOD_ROOT, WIKI_MAX_CONCURRENT
+from hoi4_agent.core.hoi4_parser import CharacterParser
+from hoi4_agent.core.localisation_generator import LocalisationGenerator
+from hoi4_agent.core.wiki.cache.sqlite_cache import WikiCache
+from hoi4_agent.core.wiki.core.data_extractor import DataExtractor, ExtractedPersonData
 
 
 # =====================================================================
@@ -149,7 +149,7 @@ class BatchProcessor:
                 )
 
             if not dry_run:
-                from tools.wiki_updater.generators.character_generator import (
+                from hoi4_agent.core.wiki.generators.character_generator import (
                     WikiCharacterGenerator,
                 )
 
@@ -295,8 +295,8 @@ class BatchProcessor:
         progress_callback: Callable[[dict, int, int], None] | None = None,
     ) -> BatchResult:
         """모든 국가를 위키에서 대조하여 2026.1.1 정치 데이터를 업데이트한다."""
-        from tools.shared.hoi4_parser import CountryHistoryParser
-        from tools.wiki_updater.core.data_extractor import COUNTRY_NAME_TO_TAG
+        from hoi4_agent.core.hoi4_parser import CountryHistoryParser
+        from hoi4_agent.core.wiki.core.data_extractor import COUNTRY_NAME_TO_TAG
 
         hist_parser = CountryHistoryParser()
         hist_dir = self.mod_root / "history" / "countries"
@@ -325,7 +325,7 @@ class BatchProcessor:
                 country = self._extractor.extract_country(tag, country_name)
                 if country:
                     if not dry_run:
-                        from tools.wiki_updater.generators.history_generator import (
+                        from hoi4_agent.core.wiki.generators.history_generator import (
                             WikiHistoryGenerator,
                         )
 

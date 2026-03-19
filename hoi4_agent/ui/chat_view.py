@@ -237,6 +237,7 @@ def _handle_input(ctx: ModContext, mod_root: Path, config):
         tool_log: list[dict] = []
         rounds = 0
         has_errors = False
+        gemini_force_text = False
 
         try:
             while rounds < config.max_tool_rounds:
@@ -276,14 +277,18 @@ def _handle_input(ctx: ModContext, mod_root: Path, config):
                     if streamed:
                         st.markdown(streamed)
                 else:
-                    with client.messages.stream(
+                    stream_kwargs = dict(
                         model=model,
                         max_tokens=config.max_tokens,
                         system=sys_param,
                         tools=tools_param,
                         messages=call_msgs,
                         tool_choice={"type": "auto"},
-                    ) as stream:
+                    )
+                    if gemini_force_text and config.ai_provider == "gemini":
+                        stream_kwargs["force_text"] = True
+
+                    with client.messages.stream(**stream_kwargs) as stream:
                         resp_text = st.write_stream(stream.text_stream)
                         resp = stream.get_final_message()
                     if isinstance(resp_text, str):
@@ -353,8 +358,12 @@ def _handle_input(ctx: ModContext, mod_root: Path, config):
                 if resp.stop_reason == "tool_use" and tool_results:
                     api_msgs.append({"role": "user", "content": tool_results})
                     if rounds >= config.max_tool_rounds:
-                        st.warning(f"⚠️ 도구 호출 {rounds}회 도달. 자동 이어서 진행합니다...")
-                        config.max_tool_rounds += 50
+                        if config.ai_provider == "gemini" and not gemini_force_text:
+                            gemini_force_text = True
+                            config.max_tool_rounds += 1
+                        else:
+                            st.warning(f"⚠️ 도구 호출 {rounds}회 도달. 자동 이어서 진행합니다...")
+                            config.max_tool_rounds += 50
                 else:
                     break
             

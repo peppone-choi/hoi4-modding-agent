@@ -6,7 +6,7 @@ hoi4_schema.py의 FILE_SCHEMAS를 사용하여 모든 파일 타입을 검증한
 31개 파일 타입 전체에 대한 구조 검증을 제공한다.
 
 사용법:
-    from tools.shared.schema_validator import SchemaValidator
+    from hoi4_agent.core.schema_validator import SchemaValidator
     
     validator = SchemaValidator()
     result = validator.validate_file("events/TFR_events_USA.txt", "event")
@@ -21,8 +21,8 @@ from typing import Any
 
 from loguru import logger
 
-from tools.shared.hoi4_parser import HOI4Parser
-from tools.shared.hoi4_schema import (
+from hoi4_agent.core.hoi4_parser import HOI4Parser
+from hoi4_agent.core.hoi4_schema import (
     FILE_SCHEMAS,
     SCOPES,
     MODIFIER_CATEGORIES,

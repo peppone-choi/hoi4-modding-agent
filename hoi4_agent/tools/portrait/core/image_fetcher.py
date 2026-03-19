@@ -12,7 +12,7 @@ from typing import Any
 import requests
 from loguru import logger
 
-from tools.shared.constants import (
+from hoi4_agent.core.constants import (
     WIKIMEDIA_COMMONS_API_URL,
     WIKIPEDIA_API_URL,
     WIKI_USER_AGENT,

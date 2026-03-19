@@ -8,7 +8,7 @@ HOI4 로컬라이제이션 형식:
     항목: <공백>KEY: "Value"
 
 사용법:
-    from tools.shared.localisation_generator import LocalisationGenerator
+    from hoi4_agent.core.localisation_generator import LocalisationGenerator
     
     gen = LocalisationGenerator(mod_root)
     
@@ -35,8 +35,8 @@ from typing import Any
 
 from loguru import logger
 
-from tools.shared.constants import MOD_ROOT
-from tools.shared.hoi4_parser import CharacterParser
+from hoi4_agent.core.constants import MOD_ROOT
+from hoi4_agent.core.hoi4_parser import CharacterParser
 
 
 # =====================================================================

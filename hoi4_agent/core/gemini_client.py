@@ -170,7 +170,8 @@ class GeminiClient:
 
         def stream(self, model: str, max_tokens: int, system: str | list,
                    messages: list, tools: list | None = None,
-                   tool_choice: dict | None = None):
+                   tool_choice: dict | None = None,
+                   force_text: bool = False):
             system_text, contents = _build_gemini_messages(system, messages)
 
             config = types.GenerateContentConfig(
@@ -179,7 +180,9 @@ class GeminiClient:
                 temperature=0.7,
             )
 
-            if tools:
+            if force_text:
+                print("[GEMINI] 강제 텍스트 모드 — 도구 비활성화, 결과 보고 강제")
+            elif tools:
                 gemini_tools = anthropic_to_gemini_tools(tools)
                 config.tools = gemini_tools
 
