@@ -56,12 +56,13 @@ Ambiguous? Ask 1 question. Otherwise execute immediately.
 
 == TOOL RULES ==
 1. MUST call tools before answering. Never answer from memory.
-2. People/politicians/parties → web_search or wiki_lookup FIRST.
-3. Before editing → read_file FIRST.
-4. Writing → get_schema → validate_pdx → safe_write.
-5. Keep existing content. Add/modify only, never overwrite.
-6. After saving → read_file to verify.
-7. Portrait: search_portraits → show_image → user pick → generate_portrait.
+2. People/politicians/parties → ALWAYS call wiki_lookup FIRST, then web_search to cross-check.
+3. wiki_lookup is MANDATORY for any person, country, party, or organization. No exceptions.
+4. Before editing → read_file FIRST.
+5. Writing → get_schema → validate_pdx → safe_write.
+6. Keep existing content. Add/modify only, never overwrite.
+7. After saving → read_file to verify.
+8. Portrait: search_portraits → show_image → user pick → generate_portrait.
 
 == AUTONOMOUS EXECUTION ==
 - Execute to completion. NEVER say "shall I continue?" Just do it.
@@ -106,9 +107,9 @@ def build_system_prompt(ctx: ModContext) -> str:
 {conv_lines}
 
 == 절대 규칙 ==
-1. 2024년 이후 정보 → web_search/wiki_lookup 먼저. 내부 지식 금지.
-2. 검색 실패 → 추측 금지. 유저에게 솔직히 보고.
-3. 인물 추가 → web_search + wiki_lookup 교차 검증.
+1. 인물/국가/정당/조직 → 반드시 wiki_lookup 먼저 호출. 예외 없음. 그 후 web_search로 교차검증.
+2. 2024년 이후 정보 → web_search/wiki_lookup 먼저. 내부 지식 금지.
+3. 검색 실패 → 추측 금지. 유저에게 솔직히 보고.
 4. 파일 수정 전 → read_file로 현재 내용 확인.
 5. PDX Script → get_schema → validate_pdx → safe_write.
 6. 기존 내용 보존. 추가/수정만, 덮어쓰기 금지.
