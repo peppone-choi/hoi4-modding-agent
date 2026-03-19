@@ -75,6 +75,39 @@ def _serialize_content(content) -> list[dict]:
     return result
 
 
+_CACHE_EPHEMERAL = {"type": "ephemeral"}
+
+
+def _prepare_cached_params(system_prompt: str, tools: list[dict]) -> tuple[list, list]:
+    cached_system = [
+        {"type": "text", "text": system_prompt, "cache_control": _CACHE_EPHEMERAL}
+    ]
+    if tools:
+        cached_tools = [*tools[:-1], {**tools[-1], "cache_control": _CACHE_EPHEMERAL}]
+    else:
+        cached_tools = []
+    return cached_system, cached_tools
+
+
+def _with_history_cache(messages: list[dict]) -> list[dict]:
+    if len(messages) < 2:
+        return messages
+    msgs = [*messages[:-1]]
+    last = messages[-1].copy()
+    content = last.get("content")
+    if isinstance(content, str):
+        last["content"] = [
+            {"type": "text", "text": content, "cache_control": _CACHE_EPHEMERAL}
+        ]
+    elif isinstance(content, list) and content:
+        last["content"] = [
+            *content[:-1],
+            {**content[-1], "cache_control": _CACHE_EPHEMERAL},
+        ]
+    msgs.append(last)
+    return msgs
+
+
 def _build_tool_summary(tool_log: list[dict]) -> str:
     if not tool_log:
         return ""
@@ -195,6 +228,13 @@ def _handle_input(ctx: ModContext, mod_root: Path, config):
                     and st.session_state.sonnet_parallel_count > 1
                 )
                 
+                sys_param = system_prompt
+                tools_param = all_tools
+                call_msgs = api_msgs
+                if config.ai_provider == "anthropic":
+                    sys_param, tools_param = _prepare_cached_params(system_prompt, all_tools)
+                    call_msgs = _with_history_cache(api_msgs)
+
                 if use_sonnet_parallel:
                     count = st.session_state.sonnet_parallel_count
                     st.caption(f"🔄 Sonnet {count}개 병렬 실행 중...")
@@ -202,9 +242,9 @@ def _handle_input(ctx: ModContext, mod_root: Path, config):
                         execute_sonnet_parallel(
                             client=client,
                             model=model,
-                            system_prompt=system_prompt,
-                            tools=all_tools,
-                            messages=api_msgs,
+                            system_prompt=sys_param,
+                            tools=tools_param,
+                            messages=call_msgs,
                             max_tokens=config.max_tokens,
                             count=count,
                         )
@@ -218,9 +258,9 @@ def _handle_input(ctx: ModContext, mod_root: Path, config):
                     with client.messages.stream(
                         model=model,
                         max_tokens=config.max_tokens,
-                        system=system_prompt,
-                        tools=all_tools,
-                        messages=api_msgs,
+                        system=sys_param,
+                        tools=tools_param,
+                        messages=call_msgs,
                         tool_choice={"type": "auto"},
                     ) as stream:
                         resp_text = st.write_stream(stream.text_stream)
@@ -229,6 +269,15 @@ def _handle_input(ctx: ModContext, mod_root: Path, config):
                         streamed = resp_text
                 
                 full += streamed
+
+                cache_usage = getattr(resp, "usage", None)
+                if config.ai_provider == "anthropic" and cache_usage is not None:
+                    cache_read = getattr(cache_usage, "cache_read_input_tokens", 0) or 0
+                    cache_write = getattr(cache_usage, "cache_creation_input_tokens", 0) or 0
+                    if cache_read > 0:
+                        st.caption(f"💾 캐시 히트: {cache_read:,} 토큰 (90% 절감)")
+                    elif cache_write > 0:
+                        st.caption(f"💾 캐시 생성: {cache_write:,} 토큰")
 
                 tool_results = []
                 for blk in resp.content:

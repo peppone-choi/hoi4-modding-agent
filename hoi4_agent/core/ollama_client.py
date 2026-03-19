@@ -87,27 +87,41 @@ class OllamaClient:
         def __init__(self, client):
             self.client = client
         
-        def stream(self, model: str, max_tokens: int, system: str, messages: list, tools: list | None = None, tool_choice: dict | None = None):
+        def stream(self, model: str, max_tokens: int, system: str | list, messages: list, tools: list | None = None, tool_choice: dict | None = None):
             ollama_messages = []
             
             if system:
-                ollama_messages.append({"role": "system", "content": system})
+                if isinstance(system, list):
+                    system_text = " ".join(
+                        block.get("text", "") for block in system if isinstance(block, dict)
+                    )
+                else:
+                    system_text = system
+                ollama_messages.append({"role": "system", "content": system_text})
             
             for msg in messages:
                 if isinstance(msg.get("content"), list):
+                    text_parts: list[str] = []
                     for block in msg["content"]:
                         if block.get("type") == "tool_result":
                             ollama_messages.append({
                                 "role": "tool",
                                 "tool_name": block.get("tool_name", ""),
-                                "content": block.get("content", "")
+                                "content": block.get("content", ""),
                             })
+                        elif block.get("type") == "text":
+                            text_parts.append(block.get("text", ""))
+                    if text_parts:
+                        ollama_messages.append({
+                            "role": msg["role"],
+                            "content": " ".join(text_parts),
+                        })
                 elif msg.get("role") == "assistant" and "tool_calls" in msg:
                     ollama_messages.append(msg)
                 else:
                     ollama_messages.append({
                         "role": msg["role"],
-                        "content": msg["content"]
+                        "content": msg["content"],
                     })
             
             payload = {
