@@ -182,14 +182,21 @@ class GeminiClient:
             if tools:
                 gemini_tools = anthropic_to_gemini_tools(tools)
                 config.tools = gemini_tools
+
+                has_tool_results = any(
+                    isinstance(m.get("content"), list) and
+                    any(b.get("type") == "tool_result" for b in m["content"])
+                    for m in messages
+                )
+                mode = "AUTO" if has_tool_results else "ANY"
                 config.tool_config = types.ToolConfig(
-                    function_calling_config=types.FunctionCallingConfig(mode="ANY")
+                    function_calling_config=types.FunctionCallingConfig(mode=mode)
                 )
                 config.automatic_function_calling = types.AutomaticFunctionCallingConfig(
                     disable=True
                 )
                 tool_names = [t["name"] for t in tools]
-                print(f"[GEMINI] {len(tools)}개 도구 전달 (mode=ANY 강제): {tool_names[:10]}")
+                print(f"[GEMINI] {len(tools)}개 도구 전달 (mode={mode}): {tool_names[:10]}")
             else:
                 print("[GEMINI] 도구 없이 호출됨!")
 
