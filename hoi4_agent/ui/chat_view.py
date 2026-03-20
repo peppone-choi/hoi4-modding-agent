@@ -109,19 +109,39 @@ def _estimate_tokens(messages: list[dict]) -> int:
     return total // _CHARS_PER_TOKEN
 
 
+def _has_tool_content(msg: dict, block_type: str) -> bool:
+    """메시지에 특정 타입(tool_use/tool_result)의 블록이 있는지 확인."""
+    content = msg.get("content")
+    if not isinstance(content, list):
+        return False
+    return any(
+        isinstance(blk, dict) and blk.get("type") == block_type
+        for blk in content
+    )
+
+
 def _trim_messages(messages: list[dict], provider: str) -> list[dict]:
     """오래된 메시지부터 제거하여 컨텍스트 한도 이내로 유지.
 
-    시스템 프롬프트 + 도구 정의를 위한 여유분(20K)을 확보하고,
-    tool_use/tool_result 쌍이 깨지지 않도록 user/assistant 쌍 단위로 제거한다.
+    tool_use(assistant) ↔ tool_result(user) 쌍이 깨지지 않도록
+    2개씩 제거하고, 트리밍 후에도 고아 tool_result가 남으면 함께 제거.
     """
     limit = _PROVIDER_CONTEXT_LIMITS.get(provider, 120000)
 
     if _estimate_tokens(messages) <= limit:
         return messages
 
-    # 최소한 마지막 user 메시지는 보존
-    while len(messages) > 1 and _estimate_tokens(messages) > limit:
+    # 2개씩 제거하여 assistant/user 쌍 유지
+    while len(messages) > 2 and _estimate_tokens(messages) > limit:
+        messages.pop(0)
+        messages.pop(0)
+
+    # 트리밍 후 첫 메시지가 tool_result로 시작하면 고아 → 제거
+    while (
+        len(messages) > 1
+        and messages[0].get("role") == "user"
+        and _has_tool_content(messages[0], "tool_result")
+    ):
         messages.pop(0)
 
     return messages
