@@ -81,6 +81,52 @@ def _serialize_content(content) -> list[dict]:
     return result
 
 
+# 메시지 토큰 한도 (시스템 프롬프트 + 도구 정의 + max_tokens 여유분 차감 후)
+_PROVIDER_CONTEXT_LIMITS = {
+    "anthropic": 150000,
+    "gemini": 900000,
+    "openai": 100000,
+    "ollama": 100000,
+}
+
+# 보수적 추정: 한국어/JSON 혼합 기준 1 토큰 ≈ 2 글자
+_CHARS_PER_TOKEN = 2
+
+
+def _estimate_tokens(messages: list[dict]) -> int:
+    """Fast token count estimate from message contents."""
+    total = 0
+    for msg in messages:
+        content = msg.get("content", "")
+        if isinstance(content, str):
+            total += len(content)
+        elif isinstance(content, list):
+            for blk in content:
+                if isinstance(blk, dict):
+                    total += len(json.dumps(blk, ensure_ascii=False))
+        else:
+            total += len(str(content))
+    return total // _CHARS_PER_TOKEN
+
+
+def _trim_messages(messages: list[dict], provider: str) -> list[dict]:
+    """오래된 메시지부터 제거하여 컨텍스트 한도 이내로 유지.
+
+    시스템 프롬프트 + 도구 정의를 위한 여유분(20K)을 확보하고,
+    tool_use/tool_result 쌍이 깨지지 않도록 user/assistant 쌍 단위로 제거한다.
+    """
+    limit = _PROVIDER_CONTEXT_LIMITS.get(provider, 120000)
+
+    if _estimate_tokens(messages) <= limit:
+        return messages
+
+    # 최소한 마지막 user 메시지는 보존
+    while len(messages) > 1 and _estimate_tokens(messages) > limit:
+        messages.pop(0)
+
+    return messages
+
+
 _CACHE_EPHEMERAL = {"type": "ephemeral"}
 
 
@@ -230,6 +276,7 @@ def _handle_input(ctx: ModContext, mod_root: Path, config):
 
     api_msgs = _get_api_messages()
     api_msgs.append({"role": "user", "content": prompt})
+    api_msgs[:] = _trim_messages(api_msgs, config.ai_provider)
 
     with st.chat_message("assistant"):
         images: list[str] = []
@@ -250,6 +297,7 @@ def _handle_input(ctx: ModContext, mod_root: Path, config):
                     and st.session_state.sonnet_parallel_count > 1
                 )
                 
+                api_msgs[:] = _trim_messages(api_msgs, config.ai_provider)
                 sys_param = system_prompt
                 tools_param = all_tools
                 call_msgs = api_msgs
